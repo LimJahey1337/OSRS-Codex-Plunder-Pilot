@@ -1,5 +1,6 @@
 package com.codex.plunder;
 
+import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Here;
 import com.codex.plunder.core.Logbook;
@@ -8,6 +9,7 @@ import com.codex.plunder.core.Pace;
 import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Planner;
 import com.codex.plunder.core.Room;
+import com.codex.plunder.core.Route;
 import com.codex.plunder.core.Run;
 import com.codex.plunder.core.RunTracker;
 import com.codex.plunder.core.Step;
@@ -38,6 +40,7 @@ import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.NPC;
 import net.runelite.api.ObjectComposition;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
@@ -54,6 +57,7 @@ import net.runelite.api.events.WallObjectDespawned;
 import net.runelite.api.events.WallObjectSpawned;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.ObjectID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.callback.ClientThread;
@@ -98,6 +102,8 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private static final Set<Integer> DOORS = ImmutableSet.of(ObjectID.NTK_TOMB_DOOR1, ObjectID.NTK_TOMB_DOOR2, ObjectID.NTK_TOMB_DOOR3, ObjectID.NTK_TOMB_DOOR4);
 	private static final Set<Integer> ARTEFACTS = ImmutableSet.of(ItemID.NTK_IVORY_COMB, ItemID.NTK_SCARAB_POTTERY, ItemID.NTK_STATUETTE_POTTERY,
 		ItemID.NTK_SEAL_STONE, ItemID.NTK_SCARAB_STONE, ItemID.NTK_STATUETTE_STONE, ItemID.NTK_SEAL_GOLD, ItemID.NTK_SCARAB_GOLD, ItemID.NTK_STATUETTE_GOLD);
+	private static final Set<Integer> CHASERS = ImmutableSet.of(NpcID.NTK_SCARAB_SWARM, NpcID.NTK_MUMMY_1, NpcID.NTK_MUMMY_2,
+		NpcID.NTK_MUMMY_3, NpcID.NTK_MUMMY_4, NpcID.NTK_MUMMY_5);
 	private static final Set<Integer> SCEPTRES = ImmutableSet.of(ItemID.PHARAOHS_SCEPTRE, ItemID.PHARAOHS_SCEPTRE_CHARGED, ItemID.PHARAOHS_SCEPTRE_CHARGED_INITIAL);
 
 	@Inject
@@ -152,6 +158,9 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private boolean lastSarcophagusOpen;
 
 	private Map<Integer, Integer> lastPack;
+	private java.util.Set<GameObject> routeOf = java.util.Collections.emptySet();
+	private int routeCount = -1;
+	private List<GameObject> routeOrder = java.util.Collections.emptyList();
 	private int finishedTick = -1000;
 
 	@Provides
@@ -302,6 +311,12 @@ public class CodexPlunderPilotPlugin extends Plugin
 	public void onStatChanged(StatChanged event)
 	{
 		Skill skill = event.getSkill();
+		if (skill == Skill.HITPOINTS || skill == Skill.PRAYER)
+		{
+			// The ready check reads both.
+			dirty = true;
+			return;
+		}
 		if (skill != Skill.THIEVING && skill != Skill.STRENGTH)
 		{
 			return;
@@ -338,6 +353,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			return;
 		}
 		long value = 0;
+		int count = 0;
 		boolean sceptre = false;
 		for (Map.Entry<Integer, Integer> e : pack.entrySet())
 		{
@@ -349,6 +365,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			if (ARTEFACTS.contains(e.getKey()))
 			{
 				value += (long) gained * itemManager.getItemPrice(e.getKey());
+				count += gained;
 			}
 			else if (SCEPTRES.contains(e.getKey()))
 			{
@@ -357,7 +374,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		}
 		if (tracker.isActive())
 		{
-			tracker.artefacts(value);
+			tracker.artefacts(count, value);
 			if (sceptre)
 			{
 				tracker.sceptre();
@@ -370,6 +387,64 @@ public class CodexPlunderPilotPlugin extends Plugin
 			save();
 		}
 		dirty = true;
+	}
+
+	/** What the pack holds that the ready check and the alarms care about, read each tick. */
+	private static final class Carried
+	{
+		int free = 28;
+		boolean charm;
+		boolean lockpick;
+		int artefacts;
+		long artefactValue;
+	}
+
+	private Carried carried()
+	{
+		Carried c = new Carried();
+		ItemContainer inv = client.getItemContainer(InventoryID.INV);
+		if (inv == null)
+		{
+			return c;
+		}
+		int used = 0;
+		for (Item item : inv.getItems())
+		{
+			int id = item.getId();
+			if (id <= 0)
+			{
+				continue;
+			}
+			used++;
+			if (id == ItemID.SNAKE_FLUTE)
+			{
+				c.charm = true;
+			}
+			else if (id == ItemID.LOCKPICK)
+			{
+				c.lockpick = true;
+			}
+			else if (ARTEFACTS.contains(id))
+			{
+				c.artefacts += item.getQuantity();
+				c.artefactValue += (long) item.getQuantity() * itemManager.getItemPrice(id);
+			}
+		}
+		c.free = Math.max(0, 28 - used);
+		return c;
+	}
+
+	/** Whether a scarab swarm or a mummy has gone for the player. */
+	private boolean chased(Player player)
+	{
+		for (NPC npc : client.getNpcs())
+		{
+			if (CHASERS.contains(npc.getId()) && npc.getInteracting() == player)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static Map<Integer, Integer> pack(ItemContainer container)
@@ -530,7 +605,10 @@ public class CodexPlunderPilotPlugin extends Plugin
 			publish(null);
 			return;
 		}
-		Step step = Step.next(plan, true, trapActive, triedSlots.size());
+		Carried pack = carried();
+		Step.Alarm alarm = new Step.Alarm(pack.free == 0, client.getBoostedSkillLevel(Skill.HITPOINTS) <= Check.LOW_HP,
+			chased(player), client.getRealSkillLevel(Skill.PRAYER) >= 43);
+		Step step = Step.next(plan, true, trapActive, triedSlots.size(), alarm);
 
 		List<RoomHighlights.Mark> marks = new ArrayList<>();
 		if (config.highlights())
@@ -541,7 +619,11 @@ public class CodexPlunderPilotPlugin extends Plugin
 					traps.stream().filter(t -> near(t, me, plane)).forEach(t -> marks.add(new RoomHighlights.Mark(t, Theme.EMBER, true)));
 					break;
 				case URNS:
-					closedUrns.forEach(u -> marks.add(new RoomHighlights.Mark(u, Theme.GOLD, false)));
+					List<GameObject> route = route(closedUrns, plan.current().getUrns(), player);
+					for (int i = 0; i < route.size(); i++)
+					{
+						marks.add(new RoomHighlights.Mark(route.get(i), i == 0 ? Theme.GOLD_BRIGHT : Theme.GOLD, false, String.valueOf(i + 1)));
+					}
 					break;
 				case CHEST:
 					chests.stream().filter(c -> near(c, me, plane)).forEach(c -> marks.add(new RoomHighlights.Mark(c, Theme.TEAL, false)));
@@ -560,7 +642,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 
 		if (config.plaque())
 		{
-			Color color = Theme.clock(ticksLeft);
+			Color color = step.getKind() == Step.Kind.DANGER ? Theme.BLOOD : Theme.clock(ticksLeft);
 			plaque.show("R" + room.getNumber() + "  " + Format.clock(ticksLeft), step.getTitle(), step.getDetail(), color,
 				ticksLeft / (double) Planner.RUN_TICKS);
 		}
@@ -569,6 +651,35 @@ public class CodexPlunderPilotPlugin extends Plugin
 			plaque.show(null, null, null, null, 0);
 		}
 		publish(new Live(plan, step, ticksLeft));
+	}
+
+	/**
+	 * The urns worth searching in walking order. The walk is worked out again only when an urn
+	 * is searched, so the numbers hold still while the player crosses the room.
+	 */
+	private List<GameObject> route(List<GameObject> closed, int count, Player player)
+	{
+		java.util.Set<GameObject> now = new java.util.HashSet<>(closed);
+		if (now.equals(routeOf) && routeCount == count)
+		{
+			return routeOrder;
+		}
+		int[] xs = new int[closed.size()];
+		int[] ys = new int[closed.size()];
+		for (int i = 0; i < closed.size(); i++)
+		{
+			xs[i] = closed.get(i).getWorldLocation().getX();
+			ys[i] = closed.get(i).getWorldLocation().getY();
+		}
+		List<GameObject> order = new ArrayList<>();
+		for (int i : Route.order(player.getWorldLocation().getX(), player.getWorldLocation().getY(), xs, ys, count))
+		{
+			order.add(closed.get(i));
+		}
+		routeOf = now;
+		routeCount = count;
+		routeOrder = order;
+		return order;
 	}
 
 	private static boolean near(TileObject o, LocalPoint me, int plane)
@@ -730,6 +841,13 @@ public class CodexPlunderPilotPlugin extends Plugin
 			View.Live run = live == null ? null : new View.Live(live.ticksLeft, tracker.getThievingXp(), tracker.getArtefacts(),
 				tracker.getChests() + tracker.getSarcophagi(), Odds.atLeastOne(tracker.getOpened()));
 			view = new View(View.State.READY, name, level, logbook.getXp(), config.goalLevel(), goal, plan, fresh, ladder, step, run, record, now);
+			if (loggedIn)
+			{
+				Carried pack = carried();
+				Check.Kit kit = new Check.Kit(level, client.getRealSkillLevel(Skill.PRAYER), client.getBoostedSkillLevel(Skill.HITPOINTS),
+					pack.free, pack.charm, pack.lockpick);
+				view.ready(new View.Ready(Check.ready(kit, fresh, logbook.slotsNeeded(fresh, 10)), pack.artefacts, pack.artefactValue));
+			}
 		}
 		SwingUtilities.invokeLater(() -> target.update(view));
 	}

@@ -12,6 +12,7 @@ public final class Run
 	private int chests;
 	private int sarcophagi;
 	private long artefacts;
+	private int artefactCount;
 	private double sceptreChance;
 	private boolean sceptre;
 	private Goal goal;
@@ -21,8 +22,9 @@ public final class Run
 	}
 
 	Run(long at, int ticks, int deepest, int thievingXp, int strengthXp, int urns, int chests, int sarcophagi,
-		long artefacts, double sceptreChance, boolean sceptre, Goal goal)
+		long artefacts, int artefactCount, double sceptreChance, boolean sceptre, Goal goal)
 	{
+		this.artefactCount = artefactCount;
 		this.at = at;
 		this.ticks = ticks;
 		this.deepest = deepest;
@@ -83,6 +85,12 @@ public final class Run
 	public long getArtefacts()
 	{
 		return artefacts;
+	}
+
+	/** How many artefacts were picked up, each taking a slot. */
+	public int getArtefactCount()
+	{
+		return artefactCount;
 	}
 
 	/** The chance this run's openings had of a sceptre. */

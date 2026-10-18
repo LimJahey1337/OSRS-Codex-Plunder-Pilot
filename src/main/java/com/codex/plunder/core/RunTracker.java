@@ -22,6 +22,7 @@ public final class RunTracker
 	private int chests;
 	private int sarcophagi;
 	private long artefacts;
+	private int artefactCount;
 	private boolean sceptre;
 	private final long[] opened = new long[Room.values().length];
 
@@ -48,6 +49,7 @@ public final class RunTracker
 		chests = 0;
 		sarcophagi = 0;
 		artefacts = 0;
+		artefactCount = 0;
 		sceptre = false;
 		java.util.Arrays.fill(opened, 0);
 	}
@@ -133,11 +135,12 @@ public final class RunTracker
 		actedHere = true;
 	}
 
-	public void artefacts(long value)
+	public void artefacts(int count, long value)
 	{
-		if (active && value > 0)
+		if (active && count > 0)
 		{
-			artefacts += value;
+			artefactCount += count;
+			artefacts += Math.max(0, value);
 		}
 	}
 
@@ -213,6 +216,6 @@ public final class RunTracker
 			return null;
 		}
 		return new Run(startedAt, Math.max(0, tick - startTick), deepest, thievingXp, strengthXp, urns, chests,
-			sarcophagi, artefacts, Odds.atLeastOne(opened), sceptre, goal);
+			sarcophagi, artefacts, artefactCount, Odds.atLeastOne(opened), sceptre, goal);
 	}
 }
