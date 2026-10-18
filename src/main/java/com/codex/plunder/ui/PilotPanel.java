@@ -1,5 +1,6 @@
 package com.codex.plunder.ui;
 
+import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Levels;
 import com.codex.plunder.core.Odds;
@@ -8,6 +9,7 @@ import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Planner;
 import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Run;
+import com.codex.plunder.core.Step;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -171,14 +173,33 @@ public class PilotPanel extends PluginPanel
 		stack.add(goal);
 
 		Card next = new Card(new BorderLayout(0, 4));
-		next.accent(view.inRun() ? Theme.clock(view.live.ticksLeft) : Theme.TEAL).highlighted(view.inRun());
-		next.add(Ui.label(view.inRun() ? "NEXT" : "BEFORE YOU GO IN", Theme.small(), Theme.TEXT_FAINT), BorderLayout.NORTH);
+		boolean danger = view.step.getKind() == Step.Kind.DANGER;
+		next.accent(danger ? Theme.BLOOD : view.inRun() ? Theme.clock(view.live.ticksLeft) : Theme.TEAL).highlighted(view.inRun());
+		next.add(Ui.label(danger ? "FIRST" : view.inRun() ? "NEXT" : "BEFORE YOU GO IN", Theme.small(), Theme.TEXT_FAINT), BorderLayout.NORTH);
 		JPanel words = new JPanel(new BorderLayout(0, 2));
 		words.setOpaque(false);
-		words.add(Ui.label(view.step.getTitle(), Theme.title(), Theme.GOLD_BRIGHT), BorderLayout.NORTH);
+		words.add(Ui.label(view.step.getTitle(), Theme.title(), danger ? Theme.BLOOD : Theme.GOLD_BRIGHT), BorderLayout.NORTH);
 		words.add(Ui.wrapped(view.step.getDetail(), Theme.small(), Theme.TEXT_MUTED, WIDTH - 30), BorderLayout.CENTER);
 		next.add(words, BorderLayout.CENTER);
 		stack.add(next);
+
+		if (!view.inRun() && view.ready != null)
+		{
+			stack.add(new SectionHeader("Ready check"));
+			Card ready = new Card(new BorderLayout());
+			StackPanel checks = new StackPanel(4, 0);
+			for (Check check : view.ready.checks)
+			{
+				checks.add(new CheckRow(check, WIDTH - 30));
+			}
+			ready.add(checks, BorderLayout.CENTER);
+			stack.add(ready);
+			if (view.ready.artefacts > 0)
+			{
+				stack.add(Ui.wrapped("Carrying " + view.ready.artefacts + (view.ready.artefacts == 1 ? " artefact" : " artefacts") + " worth "
+					+ Format.coins(view.ready.artefactValue) + " gp. They sell for about the same at the Grand Exchange.", Theme.small(), Theme.GOLD_DIM, WIDTH - 16));
+			}
+		}
 
 		Plan plan = view.plan;
 		JPanel tiles = new JPanel(new GridLayout(1, 2, 6, 0));

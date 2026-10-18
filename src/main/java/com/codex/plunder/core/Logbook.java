@@ -142,6 +142,31 @@ public final class Logbook
 	}
 
 	/**
+	 * Free slots a run like this one needs for its artefacts: the most picked up in any of the
+	 * last few runs, or a guess from the plan before there are three runs to go on.
+	 */
+	public int slotsNeeded(Plan plan, int last)
+	{
+		int n = 0;
+		int most = 0;
+		for (int i = runs.size() - 1; i >= 0 && n < last; i--, n++)
+		{
+			most = Math.max(most, runs.get(i).getArtefactCount());
+		}
+		if (n >= 3)
+		{
+			return most;
+		}
+		int guess = 0;
+		for (Plan.Stop s : plan.getStops())
+		{
+			guess += s.getUrns() + (s.isChest() ? 3 : 0) + (s.isSarcophagus() ? 3 : 0);
+		}
+		// Roughly one urn in three holds an artefact; chests and sarcophagi nearly always do.
+		return (int) Math.ceil(guess / 3.0);
+	}
+
+	/**
 	 * Thieving experience an hour over the last few runs, each counted with the usual walk back in
 	 * between runs, or 0 before there are two runs to go on.
 	 */

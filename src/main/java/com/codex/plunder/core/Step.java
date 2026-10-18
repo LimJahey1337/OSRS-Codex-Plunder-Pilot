@@ -13,7 +13,32 @@ public final class Step
 		SARCOPHAGUS,
 		DOOR,
 		LEAVE,
-		FINISH
+		FINISH,
+		/** Something needs dealing with before the plan goes on. */
+		DANGER
+	}
+
+	/** What could go wrong mid-run, read each tick. */
+	public static final class Alarm
+	{
+		final boolean packFull;
+		final boolean lowHp;
+		final boolean chased;
+		final boolean canProtect;
+
+		/**
+		 * @param chased a scarab swarm or mummy is after the player
+		 * @param canProtect the player has the Prayer for Protect from Melee
+		 */
+		public Alarm(boolean packFull, boolean lowHp, boolean chased, boolean canProtect)
+		{
+			this.packFull = packFull;
+			this.lowHp = lowHp;
+			this.chased = chased;
+			this.canProtect = canProtect;
+		}
+
+		public static final Alarm NONE = new Alarm(false, false, false, false);
 	}
 
 	private final Kind kind;
@@ -50,12 +75,31 @@ public final class Step
 	 */
 	public static Step next(Plan plan, boolean inRun, boolean trapActive, int doorsTried)
 	{
+		return next(plan, inRun, trapActive, doorsTried, Alarm.NONE);
+	}
+
+	public static Step next(Plan plan, boolean inRun, boolean trapActive, int doorsTried, Alarm alarm)
+	{
 		Plan.Stop stop = plan.current();
 		if (!inRun || stop == null)
 		{
 			return new Step(Kind.ENTER, "Enter the pyramid", enterDetail(plan));
 		}
 		Room room = stop.getRoom();
+		if (alarm.chased)
+		{
+			return new Step(Kind.DANGER, alarm.canProtect ? "Protect from Melee" : "Keep moving",
+				alarm.canProtect ? "A swarm or mummy is on you; the prayer stops all of its damage" : "It only chases you; finish the room and take the door");
+		}
+		if (alarm.lowHp)
+		{
+			return new Step(Kind.DANGER, "Eat first", "Under " + (Check.LOW_HP + 1) + " hitpoints a snake bite and its poison can hurt");
+		}
+		boolean looting = stop.getUrns() > 0 || stop.isChest() || stop.isSarcophagus();
+		if (alarm.packFull && looting && !trapActive)
+		{
+			return new Step(Kind.DANGER, "Your pack is full", "Drop the cheapest artefacts, the stone and pottery ones, to keep looting");
+		}
 		if (trapActive)
 		{
 			return new Step(Kind.TRAP, "Pass the spear trap", stop.isPassThrough() && !room.equals(plan.getTop())
@@ -147,6 +191,7 @@ public final class Step
 		{
 			return "Search urns in rooms " + firstLooted.getNumber() + " to " + top.getNumber();
 		}
-		return "Walk through rooms 1 to " + (firstLooted.getNumber() - 1) + ", search urns from room " + firstLooted.getNumber();
+		String walk = firstLooted.getNumber() == 2 ? "Walk through room 1" : "Walk through rooms 1 to " + (firstLooted.getNumber() - 1);
+		return walk + ", search urns from room " + firstLooted.getNumber();
 	}
 }

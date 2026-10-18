@@ -4,6 +4,9 @@ import com.codex.plunder.ui.Theme;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Shape;
 import java.util.Collections;
@@ -26,12 +29,20 @@ public class RoomHighlights extends Overlay
 		final TileObject object;
 		final Color color;
 		final boolean clickbox;
+		final String label;
 
 		public Mark(TileObject object, Color color, boolean clickbox)
+		{
+			this(object, color, clickbox, null);
+		}
+
+		/** @param label a short tag drawn on the object, such as its place in the walking order */
+		public Mark(TileObject object, Color color, boolean clickbox, String label)
 		{
 			this.object = object;
 			this.color = color;
 			this.clickbox = clickbox;
+			this.label = label;
 		}
 	}
 
@@ -68,8 +79,29 @@ public class RoomHighlights extends Overlay
 			g.fill(shape);
 			g.setColor(Theme.alpha(m.color, 220));
 			g.draw(shape);
+			if (m.label != null)
+			{
+				Rectangle box = shape.getBounds();
+				seal(g, m.label, (int) box.getCenterX(), (int) box.getCenterY(), m.color);
+			}
 		}
 		return null;
+	}
+
+	/** A small gilt seal with the number in it, centred on a point. */
+	static void seal(Graphics2D g, String text, int cx, int cy, Color color)
+	{
+		Theme.smooth(g);
+		g.setFont(Theme.title());
+		FontMetrics fm = g.getFontMetrics();
+		int d = Math.max(16, fm.stringWidth(text) + 8);
+		int x = cx - d / 2;
+		int y = cy - d / 2;
+		g.setPaint(new GradientPaint(0, y, Theme.mix(color, Color.WHITE, 0.25), 0, y + d, Theme.mix(color, Theme.INK_DEEP, 0.45)));
+		g.fillOval(x, y, d, d);
+		g.setColor(Theme.INK_DEEP);
+		g.drawOval(x, y, d, d);
+		g.drawString(text, cx - fm.stringWidth(text) / 2, cy + fm.getAscent() / 2 - 2);
 	}
 
 	private static Shape hull(TileObject object)

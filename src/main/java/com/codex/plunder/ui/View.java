@@ -1,5 +1,6 @@
 package com.codex.plunder.ui;
 
+import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Room;
@@ -68,6 +69,21 @@ public final class View
 		}
 	}
 
+	/** The ready check and what the pack holds, while logged in. */
+	public static final class Ready
+	{
+		final List<Check> checks;
+		final int artefacts;
+		final long artefactValue;
+
+		public Ready(List<Check> checks, int artefacts, long artefactValue)
+		{
+			this.checks = checks == null ? Collections.emptyList() : checks;
+			this.artefacts = artefacts;
+			this.artefactValue = artefactValue;
+		}
+	}
+
 	final State state;
 	final String player;
 	final int level;
@@ -84,6 +100,7 @@ public final class View
 	final Live live;
 	final Record record;
 	final long now;
+	Ready ready;
 
 	public View(State state, String player, int level, long xp, int targetLevel, Goal goal, Plan plan, Plan fresh,
 		List<Plan> ladder, Step step, Live live, Record record, long now)
@@ -101,6 +118,12 @@ public final class View
 		this.live = live;
 		this.record = record == null ? Record.empty() : record;
 		this.now = now;
+	}
+
+	public View ready(Ready ready)
+	{
+		this.ready = ready;
+		return this;
 	}
 
 	public static View loggedOut()

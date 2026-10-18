@@ -14,7 +14,9 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
 
 - **Pilot.** Pick what you are running for: **Experience** or the **Sceptre**. The route lists every room your level opens, what to do in each (pass straight through, so many urns, the chest, the sarcophagus) and what that pays, with the sceptre odds beside every chest and sarcophagus worth opening. Rooms your level has not opened yet are shown faded with the level that opens them.
 - **During a run.** The crest becomes the clock, draining from gold to ember to blood. The next step card says exactly what to do: pass the spear trap, search 9 urns, open the chest, find the tomb door (and how many of the four you have tried). The plan is redone every tick from what is left in the room and on the clock, so a slow room shortens what follows instead of costing you the deepest room's urns. When everything worth doing is done with time to spare, it tells you to leave and start a fresh run.
-- **In the room.** The urns worth searching are outlined in gold, the chest in teal, the sarcophagus in violet, the spear trap in ember and the untried tomb doors in gold, each only when it is the next step. Urns the plan skips stay dark.
+- **In the room.** The urns worth searching are outlined and numbered 1, 2, 3 in the shortest walk from where you stand, worked out exactly for the room, so you never zigzag. When the plan wants fewer urns than the room holds, it picks the ones that make the shortest walk. The chest is outlined in teal, the sarcophagus in violet, the spear trap in ember and the untried tomb doors in gold, each only when it is the next step. Urns the plan skips stay dark.
+- **Ready check.** Before you go in: enough free slots for the artefacts a run like yours turns up (a full pack quietly stops the loot), low hitpoints, whether a snake charm helps at your level (below 51) or slows you down, whether a lockpick is worth the door experience it halves, and Protect from Melee against the scarab swarm and mummies if you have the Prayer. It also says what the artefacts you are carrying are worth.
+- **When something goes wrong.** Mid-run the next step changes to what needs doing first: Protect from Melee (or keep moving) when a swarm or mummy is on you, eat when your hitpoints are low enough for a snake to hurt, and drop the cheapest artefacts when your pack is full.
 - **Odds.** Every grand gold chest and sarcophagus you open is counted by room. The page shows how many sceptres that should have turned up, how many did, and how lucky or dry you are against everyone who opened as many. For your plan it gives the chance each run, the runs to even odds and to nine in ten, and the chance in an hour.
 - **Runs.** Your Thieving experience an hour over your last runs, the way to a goal level in runs and hours, when the next room opens, a ladder of the experience an hour at every room's level, and your recent runs with what each earned, how long it took and the artefacts it turned up. A sceptre run is marked in teal.
 - **Plaque.** A slim plaque in the game view during a run with the room, the clock and the next step.
@@ -24,6 +26,10 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
   <img src="docs/screenshots/pilot-sceptre.png" width="225" alt="Hunting the sceptre">
   <img src="docs/screenshots/run-door.png" width="225" alt="Finding the door">
   <img src="docs/screenshots/runs.png" width="225" alt="Runs">
+</p>
+<p align="center">
+  <img src="docs/screenshots/pilot-ready-low.png" width="225" alt="Ready check">
+  <img src="docs/screenshots/run-danger.png" width="225" alt="A swarm on you">
 </p>
 <p align="center">
   <img src="docs/screenshots/plaque.png" alt="Plaque">
@@ -45,7 +51,7 @@ Everything is saved per account in your RuneLite profile.
 
 ## Rules posture
 
-Codex Plunder Pilot only reads what the game already shows you: your Thieving and Strength experience, the room, the clock and which urns, chests and doors are open. It outlines objects and draws its own panel and plaque. It does not click, change menus, or send anything over the network; you do every click.
+Codex Plunder Pilot only reads what the game already shows you: your Thieving, Strength, Hitpoints and Prayer, your pack, the room, the clock, which urns, chests and doors are open, and whether a swarm or mummy is after you. It outlines objects and draws its own panel and plaque. It does not click, change menus, or send anything over the network; you do every click.
 
 ## Development
 
