@@ -1322,7 +1322,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 				view.ready(new View.Ready(readyChecks(level), pack.artefacts, pack.artefactValue));
 			}
 		}
-		view.stash(stash()).goals(navigatorNeeds(level));
+		view.stash(stash()).goals(navigatorNeeds(level)).nameOnCard(config.nameOnCard());
 		SwingUtilities.invokeLater(() -> target.update(view));
 	}
 

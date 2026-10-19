@@ -16,10 +16,12 @@ import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Step;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.FlowLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.GridLayout;
+import java.awt.Toolkit;
 import java.util.List;
 import java.util.Locale;
 import javax.swing.JComponent;
@@ -439,10 +441,11 @@ public class PilotPanel extends PluginPanel
 		JPanel tiles = new JPanel(new GridLayout(1, 2, 6, 0));
 		tiles.setOpaque(false);
 		tiles.add(new StatTile(Format.amount(rate), "Xp an hour", r.recentRate > 0 ? "your last runs" : "forecast", Theme.GOLD));
-		tiles.add(new StatTile(Format.amount(r.totalRuns), "Runs", Format.coins(r.totalArtefacts) + " gp loot", Theme.TEAL));
+		tiles.add(new StatTile(Format.amount(r.totalRuns), "Runs", r.totalRuns == 0 ? "none logged yet" : Format.coins(r.totalArtefacts) + " gp loot", Theme.TEAL));
 		stack.add(tiles);
 		// The ladder, drawn as the pyramid it climbs, with the player's level and their goals up its side.
 		stack.add(new PyramidCard(view.ladder, view.level, view.inRun() ? view.plan.current().getRoom() : null, r.sceptres, view.goals));
+		stack.add(cardButton());
 
 		addSession(stack, r.session);
 		addHistory(stack, r.history);
@@ -591,6 +594,30 @@ public class PilotPanel extends PluginPanel
 	private static final int PAST_SESSIONS = 8;
 
 	/** Every session kept, newest first, each against the best one's pace. */
+	/** Copies a picture of the climb, to paste into a chat. */
+	private JComponent cardButton()
+	{
+		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		buttons.setOpaque(false);
+		CodexButton copy = new CodexButton("Copy pyramid card", false, null);
+		copy.setToolTipText("Copies a picture of your pyramid and what your runs earn, to paste into a chat");
+		copy.setAction(() ->
+		{
+			try
+			{
+				Toolkit.getDefaultToolkit().getSystemClipboard().setContents(PyramidSheet.transferable(PyramidSheet.render(view)), null);
+				copy.flash("Copied: paste it anywhere");
+			}
+			catch (IllegalStateException e)
+			{
+				// Another program holds the clipboard.
+				copy.flash("Clipboard busy, try again");
+			}
+		});
+		buttons.add(copy);
+		return buttons;
+	}
+
 	private void addHistory(StackPanel stack, List<Session> history)
 	{
 		if (history.size() < 2)
@@ -603,7 +630,8 @@ public class PilotPanel extends PluginPanel
 		{
 			bestRate = Math.max(bestRate, s.xpPerHour());
 		}
-		stack.add(new SectionHeader("Past sessions", best == null ? null : "best " + Format.amount(best.xpPerHour()) + " xp/hr"));
+		// The best session is the gilt row below; the heading counts them rather than say its rate again.
+		stack.add(new SectionHeader("Past sessions", history.size() + " sessions"));
 		Card card = new Card(new BorderLayout(0, 4));
 		StackPanel rows = new StackPanel(4, 0);
 		for (int i = 0; i < history.size() && i < PAST_SESSIONS; i++)

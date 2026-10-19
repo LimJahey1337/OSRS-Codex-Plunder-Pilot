@@ -76,4 +76,15 @@ public interface CodexPlunderPilotConfig extends Config
 	{
 		return true;
 	}
+
+	@ConfigItem(
+		keyName = "nameOnCard",
+		name = "Name on cards",
+		description = "Write your character's name on the pyramid card; turn off to share it without it",
+		position = 6
+	)
+	default boolean nameOnCard()
+	{
+		return true;
+	}
 }

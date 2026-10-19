@@ -198,6 +198,8 @@ public final class View
 	Stash stash;
 	/** The Thieving levels Codex Navigator's pinned goals still need; empty without Navigator. */
 	List<NavigatorGoals.Need> goals = Collections.emptyList();
+	/** Whether the pyramid card names the player; off to share it without the name. */
+	boolean nameOnCard = true;
 
 	public View(State state, String player, int level, long xp, int targetLevel, Goal goal, Plan plan, Plan fresh,
 		List<Plan> ladder, Step step, Live live, Record record, long now)
@@ -232,6 +234,12 @@ public final class View
 	public View goals(List<NavigatorGoals.Need> goals)
 	{
 		this.goals = goals == null ? Collections.emptyList() : goals;
+		return this;
+	}
+
+	public View nameOnCard(boolean value)
+	{
+		nameOnCard = value;
 		return this;
 	}
 
