@@ -68,21 +68,53 @@ class PyramidCard extends JComponent
 		this.level = level;
 		this.current = current;
 		this.sceptres = sceptres;
-		marks.add(new Mark(level, String.valueOf(level), true));
 		StringBuilder tip = new StringBuilder("<html>You: Thieving " + level);
-		for (NavigatorGoals.Need n : goals)
+		int[] levels = new int[goals.size()];
+		for (int i = 0; i < levels.length; i++)
 		{
+			NavigatorGoals.Need n = goals.get(i);
+			levels[i] = n.getLevel();
 			if (n.getLevel() > level && n.getLevel() <= 99)
 			{
-				marks.add(new Mark(n.getLevel(), String.valueOf(n.getLevel()), false));
 				tip.append("<br>").append(n.getLevel()).append(": ").append(Ui.escape(n.getGoal()));
 			}
 		}
+		marks.addAll(marks(level, levels));
 		spread(marks, top(), base(), 11);
 		setToolTipText(tip.append("</html>").toString());
 		setOpaque(false);
 		setPreferredSize(new Dimension(10, HEIGHT));
 		setMinimumSize(new Dimension(10, HEIGHT));
+	}
+
+	/** Most goal levels marked, the nearest first, so the marks always fit up the side. */
+	static final int MOST_GOALS = 6;
+
+	/**
+	 * The marks up the side: the player's level, then each level a goal needs above it, once however
+	 * many goals share it, and only the nearest few.
+	 */
+	static List<Mark> marks(int level, int[] goals)
+	{
+		List<Mark> out = new ArrayList<>();
+		out.add(new Mark(level, String.valueOf(level), true));
+		java.util.TreeSet<Integer> above = new java.util.TreeSet<>();
+		for (int g : goals)
+		{
+			if (g > level && g <= 99)
+			{
+				above.add(g);
+			}
+		}
+		for (int g : above)
+		{
+			if (out.size() > MOST_GOALS)
+			{
+				break;
+			}
+			out.add(new Mark(g, String.valueOf(g), false));
+		}
+		return out;
 	}
 
 	private static int top()

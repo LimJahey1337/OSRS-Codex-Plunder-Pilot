@@ -54,4 +54,29 @@ public class PyramidCardTest
 			assertTrue(marks.get(i).y >= TOP);
 		}
 	}
+
+	@Test
+	public void goalsSharingALevelGetOneMarkAndOnlyTheNearestFew()
+	{
+		List<PyramidCard.Mark> marks = PyramidCard.marks(60, new int[]{72, 72, 50, 60, 99, 120, 61, 62, 63, 64, 65, 66});
+		assertEquals(60, marks.get(0).level);
+		assertTrue(marks.get(0).you);
+		assertEquals(1 + PyramidCard.MOST_GOALS, marks.size());
+		int[] want = {61, 62, 63, 64, 65, 66};
+		for (int i = 0; i < want.length; i++)
+		{
+			assertEquals(want[i], marks.get(i + 1).level);
+		}
+		assertEquals(Arrays.asList(70, 72), levels(PyramidCard.marks(70, new int[]{72, 72, 70})));
+	}
+
+	private static List<Integer> levels(List<PyramidCard.Mark> marks)
+	{
+		List<Integer> out = new ArrayList<>();
+		for (PyramidCard.Mark m : marks)
+		{
+			out.add(m.level);
+		}
+		return out;
+	}
 }
