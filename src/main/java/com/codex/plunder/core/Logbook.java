@@ -86,14 +86,16 @@ public final class Logbook
 	}
 
 	/**
-	 * The artefacts the bank holds, seen now.
+	 * The artefacts the bank holds, seen now. The time of the look matters as much as what it
+	 * found: an unchanged bank seen again is still this plugin's newer look, and a save holding
+	 * only the older time would let Bank Steward's snapshot of the same visit look newer.
 	 *
-	 * @return whether they differ from the last look, so the save is worth writing
+	 * @return whether the save no longer matches, which is whenever the bank is seen at a new time
 	 */
 	public boolean setBanked(Map<Integer, Long> artefacts, long at)
 	{
 		Map<Integer, Long> next = new TreeMap<>(artefacts);
-		boolean changed = !next.equals(banked) || bankedAt == 0;
+		boolean changed = !next.equals(banked) || at != bankedAt;
 		banked = next;
 		bankedAt = at;
 		return changed;

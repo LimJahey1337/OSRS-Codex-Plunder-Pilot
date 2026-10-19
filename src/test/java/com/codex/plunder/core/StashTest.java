@@ -49,7 +49,9 @@ public class StashTest
 		Map<Integer, Long> seen = new HashMap<>();
 		seen.put(ItemID.NTK_IVORY_COMB, 2L);
 		assertEquals(true, book.setBanked(seen, 100));
-		assertEquals(false, book.setBanked(seen, 200));
+		assertEquals(false, book.setBanked(seen, 100));
+		// The same artefacts seen later still need saving: the look's time is what the Steward's is weighed against.
+		assertEquals(true, book.setBanked(seen, 200));
 		assertEquals(200, book.getBankedAt());
 		Logbook back = new Gson().fromJson(new Gson().toJson(book), Logbook.class).repair();
 		assertEquals(Long.valueOf(2), back.getBanked().get(ItemID.NTK_IVORY_COMB));
@@ -65,5 +67,26 @@ public class StashTest
 		Stash same = Stash.pick(Collections.singletonMap(ItemID.NTK_STATUETTE_GOLD, 7L), 500_000 - 1200, steward, ARTEFACTS);
 		assertNull(same.getFrom());
 		assertEquals(500_000 - 1200, same.getSeenAt());
+	}
+
+	@Test
+	public void anUnchangedBankVisitIsStillThisPluginsAfterARestart()
+	{
+		Gson gson = new Gson();
+		Logbook book = new Logbook();
+		Map<Integer, Long> seen = new HashMap<>();
+		seen.put(ItemID.NTK_STATUETTE_GOLD, 7L);
+		book.setBanked(seen, 100_000);
+		String saved = gson.toJson(book);
+		// Back at the bank much later, nothing changed. Bank Steward saves the same visit a moment after.
+		if (book.setBanked(seen, 480_000))
+		{
+			saved = gson.toJson(book);
+		}
+		Logbook restarted = gson.fromJson(saved, Logbook.class).repair();
+		SharedBank steward = SharedBank.read(gson, STEWARD, null);
+		Stash stash = Stash.pick(restarted.getBanked(), restarted.getBankedAt(), steward, ARTEFACTS);
+		assertNull(stash.getFrom());
+		assertEquals(480_000, stash.getSeenAt());
 	}
 }

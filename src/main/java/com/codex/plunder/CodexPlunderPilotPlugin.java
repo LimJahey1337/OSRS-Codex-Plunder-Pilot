@@ -62,6 +62,8 @@ import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.WallObjectDespawned;
 import net.runelite.api.events.WallObjectSpawned;
+import net.runelite.api.events.WidgetClosed;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.NpcID;
@@ -493,6 +495,17 @@ public class CodexPlunderPilotPlugin extends Plugin
 			tracker.strength(gained);
 		}
 		dirty = true;
+	}
+
+	@Subscribe
+	public void onWidgetClosed(WidgetClosed event)
+	{
+		// Write the bank look as the bank closes, so its time is saved before Bank Steward's
+		// snapshot of the same visit can outlive it (the Stash weighs the two by time).
+		if (event.getGroupId() == InterfaceID.BANKMAIN && event.isUnload())
+		{
+			save();
+		}
 	}
 
 	@Subscribe
