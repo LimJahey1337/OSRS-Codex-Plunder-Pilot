@@ -170,6 +170,12 @@ public final class RunTracker
 		return room;
 	}
 
+	/** The goal the run began with, which it is recorded and compared under even if the goal changes mid-run. */
+	public Goal getGoal()
+	{
+		return goal;
+	}
+
 	/** Ticks from the start of the run to entering the room, or -1 when it has not been entered. */
 	public int enteredAt(Room r)
 	{

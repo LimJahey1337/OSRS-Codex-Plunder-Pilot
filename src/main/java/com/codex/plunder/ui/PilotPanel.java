@@ -138,11 +138,36 @@ public class PilotPanel extends PluginPanel
 			Theme.mix(Theme.TEXT_MUTED, Theme.GOLD, 0.35), Theme.GOLD, -1);
 	}
 
+	private String oddsShown;
+	private String runsShown;
+
+	/**
+	 * The Pilot page changes every tick of a run; the other two only when a run is added, the level
+	 * or goal changes or a minute passes, so they are rebuilt only then rather than every tick.
+	 */
 	private void rebuild()
 	{
 		rebuildPilot();
-		rebuildOdds();
-		rebuildRuns();
+		View.Record r = view.record;
+		long opened = 0;
+		for (long o : r.opened)
+		{
+			opened += o;
+		}
+		String common = view.state + "|" + view.level + "|" + view.goal + "|" + r.totalRuns + "|" + r.runs.size() + "|" + r.sceptres
+			+ "|" + r.paceSamples;
+		String odds = common + "|" + opened;
+		if (!odds.equals(oddsShown))
+		{
+			oddsShown = odds;
+			rebuildOdds();
+		}
+		String runsKey = common + "|" + view.xp + "|" + view.targetLevel + "|" + r.recentRate + "|" + view.now / 60_000L;
+		if (!runsKey.equals(runsShown))
+		{
+			runsShown = runsKey;
+			rebuildRuns();
+		}
 	}
 
 	private boolean waiting(StackPanel stack)

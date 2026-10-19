@@ -1040,7 +1040,9 @@ public class CodexPlunderPilotPlugin extends Plugin
 			Plan plan = live == null ? fresh : live.plan;
 			Step step = live == null ? Step.next(fresh, false, false, 0) : live.step;
 			Room in = tracker.getRoom();
-			Integer split = in == null || in.ordinal() == 0 ? null : book.all.delta(in, tracker.enteredAt(in));
+			// Measured against the best for the goal the run began with, which is the goal it will be saved under.
+			Integer split = live == null || in == null || in.ordinal() == 0 || tracker.getGoal() == null ? null
+				: splits(tracker.getGoal(), Room.highest(level)).all.delta(in, tracker.enteredAt(in));
 			View.Live run = live == null ? null : new View.Live(live.ticksLeft, tracker.getThievingXp(), tracker.getArtefacts(),
 				tracker.getChests() + tracker.getSarcophagi(), Odds.atLeastOne(tracker.getOpened()), split);
 			view = new View(View.State.READY, name, level, logbook.getXp(), config.goalLevel(), goal, plan, fresh, ladder, step, run, record, now);
