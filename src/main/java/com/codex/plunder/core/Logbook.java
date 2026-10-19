@@ -1,5 +1,6 @@
 package com.codex.plunder.core;
 
+import com.google.gson.Gson;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -229,6 +230,16 @@ public final class Logbook
 		return n < 2 || ticks <= 0 ? 0 : (int) Math.round(xp * Planner.TICKS_PER_HOUR / ticks);
 	}
 
+	/**
+	 * Reads the logbook saved for an account, or a fresh one when there is none. A damaged save
+	 * keeps all it can: a field or run that cannot be read is lost alone.
+	 */
+	public static Logbook read(Gson gson, String saved)
+	{
+		Logbook read = Salvage.read(gson, saved, Logbook.class);
+		return read == null ? new Logbook() : read.repair();
+	}
+
 	/** Puts back what an older or damaged save left out. */
 	public Logbook repair()
 	{
@@ -246,6 +257,20 @@ public final class Logbook
 			runs = new ArrayList<>();
 		}
 		runs.removeIf(r -> r == null);
+		runs.forEach(Run::repair);
+		while (runs.size() > KEEP)
+		{
+			runs.remove(0);
+		}
+		// A level or count out of what the game allows is damage, brought back into range.
+		level = Math.max(0, Math.min(Levels.MAX, level));
+		xp = Math.max(0, Math.min(Levels.MAX_XP, xp));
+		sceptres = Math.max(0, sceptres);
+		totalRuns = Math.max(Math.max(0, totalRuns), runs.size());
+		totalXp = Math.max(0, totalXp);
+		totalArtefacts = Math.max(0, totalArtefacts);
+		totalTicks = Math.max(0, totalTicks);
+		bankedAt = Math.max(0, bankedAt);
 		if (sceptre == null)
 		{
 			sceptre = new Sceptre();
@@ -260,6 +285,10 @@ public final class Logbook
 				System.arraycopy(opened, 0, fixed, 0, Math.min(opened.length, fixed.length));
 			}
 			opened = fixed;
+		}
+		for (int i = 0; i < opened.length; i++)
+		{
+			opened[i] = Math.max(0, opened[i]);
 		}
 		return this;
 	}

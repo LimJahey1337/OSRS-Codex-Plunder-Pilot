@@ -32,7 +32,6 @@ import com.codex.plunder.ui.Theme;
 import com.codex.plunder.ui.View;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 import com.google.inject.Provides;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -1205,23 +1204,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		{
 			return;
 		}
-		try
-		{
-			String saved = configManager.getRSProfileConfiguration(CodexPlunderPilotConfig.GROUP, LOGBOOK_KEY);
-			if (saved != null && !saved.isEmpty())
-			{
-				Logbook read = gson.fromJson(saved, Logbook.class);
-				logbook = read == null ? null : read.repair();
-			}
-		}
-		catch (JsonParseException e)
-		{
-			log.warn("Could not read the saved logbook, starting afresh", e);
-		}
-		if (logbook == null)
-		{
-			logbook = new Logbook();
-		}
+		logbook = Logbook.read(gson, configManager.getRSProfileConfiguration(CodexPlunderPilotConfig.GROUP, LOGBOOK_KEY));
 		sharedBanked = readSharedBank();
 		readNavigator();
 		unsaved = false;

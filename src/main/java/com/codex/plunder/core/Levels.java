@@ -4,6 +4,10 @@ package com.codex.plunder.core;
 public final class Levels
 {
 	private static final int[] XP = new int[127];
+	/** The highest level a skill shows. */
+	public static final int MAX = 99;
+	/** The most experience a skill can hold. */
+	public static final long MAX_XP = 200_000_000;
 
 	static
 	{

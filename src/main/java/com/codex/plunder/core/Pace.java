@@ -95,22 +95,24 @@ public final class Pace
 	/** Puts back defaults that an older or damaged save left out. */
 	Pace repair()
 	{
-		if (!(urn > 0))
+		if (!(urn > 0 && urn < Planner.RUN_TICKS))
 		{
 			urn = URN;
 		}
-		if (!(chest > 0))
+		if (!(chest > 0 && chest < Planner.RUN_TICKS))
 		{
 			chest = CHEST;
 		}
-		if (!(sarcophagus > 0))
+		if (!(sarcophagus > 0 && sarcophagus < Planner.RUN_TICKS))
 		{
 			sarcophagus = SARCOPHAGUS;
 		}
-		if (!(pass > 0))
+		if (!(pass > 0 && pass < Planner.RUN_TICKS))
 		{
 			pass = PASS;
 		}
+		urnSamples = Math.max(0, urnSamples);
+		passSamples = Math.max(0, passSamples);
 		return this;
 	}
 }

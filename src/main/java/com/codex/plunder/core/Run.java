@@ -131,4 +131,26 @@ public final class Run
 	{
 		return splits == null || room == null || room.ordinal() >= splits.length ? -1 : splits[room.ordinal()];
 	}
+
+	/** Brings back into range what a damaged save left out of it. */
+	void repair()
+	{
+		ticks = Math.max(0, ticks);
+		deepest = Math.max(0, Math.min(Room.values().length, deepest));
+		thievingXp = Math.max(0, thievingXp);
+		strengthXp = Math.max(0, strengthXp);
+		urns = Math.max(0, urns);
+		chests = Math.max(0, chests);
+		sarcophagi = Math.max(0, sarcophagi);
+		artefacts = Math.max(0, artefacts);
+		artefactCount = Math.max(0, artefactCount);
+		sceptreChance = sceptreChance >= 0 && sceptreChance <= 1 ? sceptreChance : 0;
+		if (splits != null)
+		{
+			for (int k = 0; k < splits.length; k++)
+			{
+				splits[k] = Math.max(-1, splits[k]);
+			}
+		}
+	}
 }
