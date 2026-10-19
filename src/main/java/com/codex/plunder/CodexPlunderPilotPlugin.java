@@ -236,6 +236,10 @@ public class CodexPlunderPilotPlugin extends Plugin
 	{
 		switch (event.getGameState())
 		{
+			case HOPPING:
+				// The pack and worn items are sent again on the new world; look afresh rather than count them as found.
+				lastSceptres = -1;
+				break;
 			case LOADING:
 				forgetScene();
 				break;
