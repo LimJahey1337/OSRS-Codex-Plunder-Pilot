@@ -58,6 +58,14 @@ public final class Check
 		final int freeSlots;
 		final boolean charm;
 		final boolean lockpick;
+		/** What sceptre is carried. */
+		SceptreKit sceptre = SceptreKit.NONE;
+		/** The carried sceptre's charges, or -1 when not known. */
+		int charges = -1;
+		/** Whether the charges were read live, rather than kept from the last message that named them. */
+		boolean chargesLive;
+		/** What sceptre waits in the bank: none, an emptied one, or a charged one. */
+		SceptreKit banked = SceptreKit.NONE;
 
 		public Kit(int level, int prayer, int hp, int freeSlots, boolean charm, boolean lockpick)
 		{
@@ -68,6 +76,29 @@ public final class Check
 			this.charm = charm;
 			this.lockpick = lockpick;
 		}
+
+		/**
+		 * @param carried the sceptre carried or worn
+		 * @param charges its charges, or -1 when not known
+		 * @param live whether the charges are read live rather than kept from the last check
+		 * @param banked the sceptre waiting in the bank, if any
+		 */
+		public Kit sceptre(SceptreKit carried, int charges, boolean live, SceptreKit banked)
+		{
+			this.sceptre = carried == null ? SceptreKit.NONE : carried;
+			this.charges = charges;
+			this.chargesLive = live;
+			this.banked = banked == null ? SceptreKit.NONE : banked;
+			return this;
+		}
+	}
+
+	/** The Pharaoh's sceptre as carried: not at all, emptied, or charged. */
+	public enum SceptreKit
+	{
+		NONE,
+		UNCHARGED,
+		CHARGED
 	}
 
 	/**
@@ -121,6 +152,69 @@ public final class Check
 		{
 			checks.add(new Check(State.GOOD, "Protect from Melee", "Stops all damage from the scarab swarm and the mummies"));
 		}
+		Check sceptre = sceptre(kit);
+		if (sceptre != null)
+		{
+			checks.add(sceptre);
+		}
 		return checks;
+	}
+
+	/**
+	 * The one point of a ready check worth raising in the game view before a run: the first
+	 * warning, else the first tip, else null when everything is in order.
+	 */
+	public static Check mostUrgent(List<Check> checks)
+	{
+		Check tip = null;
+		for (Check c : checks)
+		{
+			if (c.state == State.WARN)
+			{
+				return c;
+			}
+			if (c.state == State.TIP && tip == null)
+			{
+				tip = c;
+			}
+		}
+		return tip;
+	}
+
+	/** Below this many charges the sceptre is worth topping up before it strands you. */
+	static final int LOW_CHARGES = 3;
+
+	/** What to say about the Pharaoh's sceptre, whose first teleport lands at the pyramid; null for nothing. */
+	static Check sceptre(Kit kit)
+	{
+		switch (kit.sceptre)
+		{
+			case UNCHARGED:
+				return new Check(State.WARN, "Sceptre has no charges", "Recharge it and it teleports you straight back here after banking");
+			case CHARGED:
+				// The charged sceptre turns back into the emptied one at its last charge, so a count of
+				// none on a charged one is a count gone stale (recharged since), not an empty sceptre.
+				if (kit.charges <= 0)
+				{
+					return new Check(State.GOOD, "Pharaoh's sceptre", "Teleports you back after banking. Check it once and its charges are counted");
+				}
+				String since = kit.chargesLive ? "" : "At its last check. ";
+				if (kit.charges < LOW_CHARGES)
+				{
+					return new Check(State.TIP, "Sceptre: " + kit.charges + (kit.charges == 1 ? " charge" : " charges"),
+						since + "Top it up soon; each trip back here after banking takes one");
+				}
+				return new Check(State.GOOD, "Sceptre: " + kit.charges + " charges", since + "A teleport back here after every bank trip");
+			default:
+				switch (kit.banked)
+				{
+					case CHARGED:
+						return new Check(State.TIP, "Bring your sceptre", "It is in your bank, and its Jalsavrah teleport lands right at the pyramid");
+					case UNCHARGED:
+						return new Check(State.TIP, "Recharge your sceptre", "The one in your bank is empty. Charged, its teleport lands right at the pyramid");
+					default:
+						return null;
+				}
+		}
 	}
 }

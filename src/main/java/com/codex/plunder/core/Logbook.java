@@ -1,8 +1,11 @@
 package com.codex.plunder.core;
 
+import com.google.gson.Gson;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Everything kept per account: the learned pace, the chosen goal, every run, and every chest
@@ -12,6 +15,11 @@ public final class Logbook
 {
 	/** Runs kept in full; older runs still count in the totals. */
 	static final int KEEP = 300;
+	/**
+	 * A save at least this long is read off the client thread. 300 runs come to about 80,000
+	 * characters and take about 5 ms to read and check; a hand-edited save can be far longer.
+	 */
+	public static final int LARGE = 40_000;
 
 	private Pace pace = new Pace();
 	private Goal goal = Goal.EXPERIENCE;
@@ -24,6 +32,10 @@ public final class Logbook
 	private long totalXp;
 	private long totalArtefacts;
 	private long totalTicks;
+	private Sceptre sceptre = new Sceptre();
+	/** Artefacts in the bank as last seen here, by item id. */
+	private Map<Integer, Long> banked = new TreeMap<>();
+	private long bankedAt;
 
 	public Pace getPace()
 	{
@@ -55,6 +67,44 @@ public final class Logbook
 	{
 		this.level = level;
 		this.xp = xp;
+	}
+
+	/** The sceptre's charges and where it was last seen. */
+	public Sceptre getSceptre()
+	{
+		if (sceptre == null)
+		{
+			sceptre = new Sceptre();
+		}
+		return sceptre;
+	}
+
+	/** Artefacts in the bank as last seen here. */
+	public Map<Integer, Long> getBanked()
+	{
+		return Collections.unmodifiableMap(banked);
+	}
+
+	/** When the bank was last seen here, 0 for never. */
+	public long getBankedAt()
+	{
+		return bankedAt;
+	}
+
+	/**
+	 * The artefacts the bank holds, seen now. The time of the look matters as much as what it
+	 * found: an unchanged bank seen again is still this plugin's newer look, and a save holding
+	 * only the older time would let Bank Steward's snapshot of the same visit look newer.
+	 *
+	 * @return whether the save no longer matches, which is whenever the bank is seen at a new time
+	 */
+	public boolean setBanked(Map<Integer, Long> artefacts, long at)
+	{
+		Map<Integer, Long> next = new TreeMap<>(artefacts);
+		boolean changed = !next.equals(banked) || at != bankedAt;
+		banked = next;
+		bankedAt = at;
+		return changed;
 	}
 
 	public List<Run> getRuns()
@@ -185,6 +235,16 @@ public final class Logbook
 		return n < 2 || ticks <= 0 ? 0 : (int) Math.round(xp * Planner.TICKS_PER_HOUR / ticks);
 	}
 
+	/**
+	 * Reads the logbook saved for an account, or a fresh one when there is none. A damaged save
+	 * keeps all it can: a field or run that cannot be read is lost alone.
+	 */
+	public static Logbook read(Gson gson, String saved)
+	{
+		Logbook read = Salvage.read(gson, saved, Logbook.class);
+		return read == null ? new Logbook() : read.repair();
+	}
+
 	/** Puts back what an older or damaged save left out. */
 	public Logbook repair()
 	{
@@ -202,6 +262,26 @@ public final class Logbook
 			runs = new ArrayList<>();
 		}
 		runs.removeIf(r -> r == null);
+		runs.forEach(Run::repair);
+		while (runs.size() > KEEP)
+		{
+			runs.remove(0);
+		}
+		// A level or count out of what the game allows is damage, brought back into range.
+		level = Math.max(0, Math.min(Levels.MAX, level));
+		xp = Math.max(0, Math.min(Levels.MAX_XP, xp));
+		sceptres = Math.max(0, sceptres);
+		totalRuns = Math.max(Math.max(0, totalRuns), runs.size());
+		totalXp = Math.max(0, totalXp);
+		totalArtefacts = Math.max(0, totalArtefacts);
+		totalTicks = Math.max(0, totalTicks);
+		bankedAt = Math.max(0, bankedAt);
+		if (sceptre == null)
+		{
+			sceptre = new Sceptre();
+		}
+		banked = banked == null ? new TreeMap<>() : new TreeMap<>(banked);
+		banked.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() <= 0);
 		if (opened == null || opened.length != Room.values().length)
 		{
 			long[] fixed = new long[Room.values().length];
@@ -210,6 +290,10 @@ public final class Logbook
 				System.arraycopy(opened, 0, fixed, 0, Math.min(opened.length, fixed.length));
 			}
 			opened = fixed;
+		}
+		for (int i = 0; i < opened.length; i++)
+		{
+			opened[i] = Math.max(0, opened[i]);
 		}
 		return this;
 	}

@@ -16,6 +16,8 @@ public final class Run
 	private double sceptreChance;
 	private boolean sceptre;
 	private Goal goal;
+	/** Ticks from the start of the run to entering each room, by room; -1 where not seen. Older saves have none. */
+	private int[] splits;
 
 	Run()
 	{
@@ -24,6 +26,13 @@ public final class Run
 	Run(long at, int ticks, int deepest, int thievingXp, int strengthXp, int urns, int chests, int sarcophagi,
 		long artefacts, int artefactCount, double sceptreChance, boolean sceptre, Goal goal)
 	{
+		this(at, ticks, deepest, thievingXp, strengthXp, urns, chests, sarcophagi, artefacts, artefactCount, sceptreChance, sceptre, goal, null);
+	}
+
+	Run(long at, int ticks, int deepest, int thievingXp, int strengthXp, int urns, int chests, int sarcophagi,
+		long artefacts, int artefactCount, double sceptreChance, boolean sceptre, Goal goal, int[] splits)
+	{
+		this.splits = splits == null ? null : splits.clone();
 		this.artefactCount = artefactCount;
 		this.at = at;
 		this.ticks = ticks;
@@ -112,5 +121,36 @@ public final class Run
 	public Goal getGoal()
 	{
 		return goal == null ? Goal.EXPERIENCE : goal;
+	}
+
+	/**
+	 * Ticks from the start of the run to entering the room, or -1 when the run never got there,
+	 * entered it before the plugin was watching, or was saved before splits were kept.
+	 */
+	public int splitAt(Room room)
+	{
+		return splits == null || room == null || room.ordinal() >= splits.length ? -1 : splits[room.ordinal()];
+	}
+
+	/** Brings back into range what a damaged save left out of it. */
+	void repair()
+	{
+		ticks = Math.max(0, ticks);
+		deepest = Math.max(0, Math.min(Room.values().length, deepest));
+		thievingXp = Math.max(0, thievingXp);
+		strengthXp = Math.max(0, strengthXp);
+		urns = Math.max(0, urns);
+		chests = Math.max(0, chests);
+		sarcophagi = Math.max(0, sarcophagi);
+		artefacts = Math.max(0, artefacts);
+		artefactCount = Math.max(0, artefactCount);
+		sceptreChance = sceptreChance >= 0 && sceptreChance <= 1 ? sceptreChance : 0;
+		if (splits != null)
+		{
+			for (int k = 0; k < splits.length; k++)
+			{
+				splits[k] = Math.max(-1, splits[k]);
+			}
+		}
 	}
 }

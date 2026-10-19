@@ -1,57 +1,70 @@
 # Codex Plunder Pilot
 
-**Every Pyramid Plunder run, planned for your Thieving level.** Which rooms to walk straight through, which urns are worth the clock, when the grand gold chest and the sarcophagus pay, and your odds of the Pharaoh's sceptre. During a run it replans every tick against the five-minute clock, says the one thing to do next, and outlines it in the room.
+**Every Pyramid Plunder run, planned for your Thieving level.**
 
-It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nubles/OSRS-Codex-Navigator), [Codex Guardian](https://github.com/Nubles/OSRS-Codex-Guardian), [Codex Gear Roadmap](https://github.com/Nubles/OSRS-Codex-Gear-Roadmap), [Codex Session Chronicle](https://github.com/Nubles/OSRS-Codex-Session-Chronicle), [Codex Ledger](https://github.com/Nubles/OSRS-Codex-Ledger) and [Codex Quartermaster](https://github.com/Nubles/OSRS-Codex-Quartermaster), and shares their look: warm ink, aged gold and the game's own fonts.
+Which rooms to walk straight through, which urns are worth the clock, when the grand gold chest and the sarcophagus pay, and your odds of the Pharaoh's sceptre. During a run it replans every tick against the five-minute clock, says the one thing to do next, and outlines it in the room.
+
+Part of the **Codex** suite of RuneLite plugins. They share one look: warm ink, aged gold and the game's own fonts.
 
 <p align="center">
-  <img src="docs/screenshots/pilot.png" width="225" alt="Pilot">
-  <img src="docs/screenshots/run-urns.png" width="225" alt="During a run">
-  <img src="docs/screenshots/odds.png" width="225" alt="Odds">
+  <img src="docs/screenshots/pilot.png" width="225" alt="Pilot: the route and the ready check">
+  <img src="docs/screenshots/odds.png" width="225" alt="Odds: your sceptre luck">
+  <img src="docs/screenshots/runs.png" width="225" alt="Runs: the pyramid, sessions and splits">
 </p>
 
 ## What it does
 
-- **Pilot.** Pick what you are running for: **Experience** or the **Sceptre**. The route lists every room your level opens, what to do in each (pass straight through, so many urns, the chest, the sarcophagus) and what that pays, with the sceptre odds beside every chest and sarcophagus worth opening. Rooms your level has not opened yet are shown faded with the level that opens them.
-- **During a run.** The crest becomes the clock, draining from gold to ember to blood. The next step card says exactly what to do: pass the spear trap, search 9 urns, open the chest, find the tomb door (and how many of the four you have tried). The plan is redone every tick from what is left in the room and on the clock, so a slow room shortens what follows instead of costing you the deepest room's urns. When everything worth doing is done with time to spare, it tells you to leave and start a fresh run.
-- **In the room.** The urns worth searching are outlined and numbered 1, 2, 3 in the shortest walk from where you stand, worked out exactly for the room, so you never zigzag. When the plan wants fewer urns than the room holds, it picks the ones that make the shortest walk. The chest is outlined in teal, the sarcophagus in violet, the spear trap in ember and the untried tomb doors in gold, each only when it is the next step. Urns the plan skips stay dark.
-- **Ready check.** Before you go in: enough free slots for the artefacts a run like yours turns up (a full pack quietly stops the loot), low hitpoints, whether a snake charm helps at your level (below 51) or slows you down, whether a lockpick is worth the door experience it halves, and Protect from Melee against the scarab swarm and mummies if you have the Prayer. It also says what the artefacts you are carrying are worth.
-- **When something goes wrong.** Mid-run the next step changes to what needs doing first: Protect from Melee (or keep moving) when a swarm or mummy is on you, eat when your hitpoints are low enough for a snake to hurt, and drop the cheapest artefacts when your pack is full.
-- **Odds.** Every grand gold chest and sarcophagus you open is counted by room. The page shows how many sceptres that should have turned up, how many did, and how lucky or dry you are against everyone who opened as many. For your plan it gives the chance each run, the runs to even odds and to nine in ten, and the chance in an hour.
-- **Runs.** Your Thieving experience an hour over your last runs, the way to a goal level in runs and hours, when the next room opens, a ladder of the experience an hour at every room's level, and your recent runs with what each earned, how long it took and the artefacts it turned up. A sceptre run is marked in teal.
-- **Plaque.** A slim plaque in the game view during a run with the room, the clock and the next step.
-- **Run summary.** When a run ends, a line in the chat box with the room reached, the experience, the artefacts and the sceptre odds the run carried.
+**Pilot.** Pick what you are running for: **Experience** or the **Sceptre**. The route lists every room your level opens, what to do in each (walk through, so many urns, the chest, the sarcophagus) and what that pays, with the sceptre odds beside every chest and sarcophagus worth opening.
+
+**Ready check.** Before you go in: enough free slots for the artefacts a run turns up, low hitpoints, whether a snake charm or lockpick helps at your level, Protect from Melee against the swarm and mummies, and your sceptre's charges.
+
+**During a run.** The crest becomes the clock. The next-step card says exactly what to do: pass the trap, search 9 urns, open the chest, find the door. The plan is redone every tick from what is left, so a slow room shortens what follows instead of costing you the deepest room's urns. In the room, the urns worth searching are outlined and numbered in the shortest walk; the chest, sarcophagus, trap and untried doors light up when each is next. When a swarm or mummy is on you, or your pack is full, the next step says what to do first.
 
 <p align="center">
-  <img src="docs/screenshots/pilot-sceptre.png" width="225" alt="Hunting the sceptre">
-  <img src="docs/screenshots/run-door.png" width="225" alt="Finding the door">
-  <img src="docs/screenshots/runs.png" width="225" alt="Runs">
+  <img src="docs/screenshots/in-run.png" width="225" alt="During a run">
+  <img src="docs/screenshots/plaque.png" width="246" alt="The run plaque">
 </p>
+
+**Odds.** Every grand gold chest and sarcophagus you open is counted by room. The page shows how many sceptres you should have had, how many you did, and how lucky or dry that is. For your plan it gives the chance each run, the runs to even odds and to nine in ten, and the date those land at your pace.
+
+**Runs.** Your experience an hour over your last runs, drawn as the pyramid itself with your level and any goal levels up its side. Under it: your session with a bar for every run, your past sessions against your best, splits for each room against your quickest, and the artefacts waiting in your bank with what they fetch. **Copy pyramid card** copies a picture of it to paste into a chat.
+
 <p align="center">
-  <img src="docs/screenshots/pilot-ready-low.png" width="225" alt="Ready check">
-  <img src="docs/screenshots/run-danger.png" width="225" alt="A swarm on you">
+  <img src="docs/screenshots/pyramid-card.png" width="330" alt="The pyramid card">
 </p>
-<p align="center">
-  <img src="docs/screenshots/plaque.png" alt="Plaque">
-  <img src="docs/screenshots/plaque-late.png" alt="Plaque with the clock nearly out">
-</p>
+
+**Chat.** When a run ends, a line with the room reached, the experience, the artefacts and the sceptre odds it carried. When a new level opens a deeper room, a line says so and what a run pays there now.
+
+## Settings that matter
+
+- **Highlight the next step** (on): the outlines and urn numbers in the room.
+- **Run plaque** and **Ready plaque** (both on): the plaque during a run, and the ready check's most urgent point before one.
+- **Run summary in chat** and **Room openings in chat** (both on).
+- **Goal level** (99): the Thieving level the Runs page counts toward.
+- **Name on cards** (on): turn off to share the pyramid card without your character's name.
+
+## With other Codex plugins
+
+Plunder Pilot works on its own. With other Codex plugins installed, it reads what they save and never changes it:
+
+- **[Codex Navigator](https://github.com/Nubles/OSRS-Codex-Navigator):** every unfinished goal that needs more Thieving is listed on the Runs page, with the runs, play time and date it takes at your pace.
+- **[Codex Bank Steward](https://github.com/Nubles/OSRS-Codex-Bank-Steward):** its saved bank, when newer than the Pilot's own look, counts your banked artefacts and finds a sceptre in your bank before you open it.
+- **[Codex Gear Roadmap](https://github.com/Nubles/OSRS-Codex-Gear-Roadmap):** without Bank Steward, its saved gear finds a banked sceptre (but not a freshly found one, which it does not track).
 
 ## How it plans
 
 The figures are the game's, as the Old School wiki records them: experience for each room's urns, chest and door, the Strength experience from each sarcophagus, and the sceptre rate per chest or sarcophagus (1 in 4,200 in room 1 down to 1 in 650 in rooms 7 and 8).
 
-Getting through each room (the trap, the true door among four and the walk) costs a fixed time. What is left of the five minutes is shared out among the urns, chests and sarcophagi by what your goal values most per tick, which is why the deepest two rooms get the urns and the shallow rooms are walked through:
+Getting through each room costs a fixed time. What is left of the five minutes goes to the urns, chests and sarcophagi your goal values most per tick:
 
-- **Experience** opens the chests from room 4 on first (they are quick and pay in artefacts and sceptre chances), then searches urns from the best-paying room down while the clock allows.
-- **Sceptre** opens every chest and the sarcophagi from room 4 on, where their odds are best, before any urn. At 91 that is a sceptre chance of about 1 in 69 a run, against 1 in 137 for an experience run.
+- **Experience** opens the chests from room 4 on first, then searches urns from the best-paying room down while the clock allows.
+- **Sceptre** opens every chest and the sarcophagi from room 4 on, where their odds are best, before any urn.
 
-The plan starts from typical times (an urn about six seconds with the odd failure, a room's trap, door and walk about fifteen) and learns your own from your runs. Chests and sarcophagi come last in each room so a scarab swarm or mummy has the least time to chase you.
-
-Everything is saved per account in your RuneLite profile.
+The plan starts from typical times and learns your own from your runs. Everything is saved per account in your RuneLite profile. A save damaged on disk keeps all it can: one unreadable run or setting is lost alone. Before a damaged save, or one a newer version wrote, is first saved over, a copy of it as found is kept aside in your profile.
 
 ## Rules posture
 
-Codex Plunder Pilot only reads what the game already shows you: your Thieving, Strength, Hitpoints and Prayer, your pack, the room, the clock, which urns, chests and doors are open, and whether a swarm or mummy is after you. It outlines objects and draws its own panel and plaque. It does not click, change menus, or send anything over the network; you do every click.
+Codex Plunder Pilot only reads what the game already shows you: your skills, pack and bank, the room, the clock, which urns, chests and doors are open, and whether a swarm or mummy is after you. It outlines objects and draws its own panel and plaque. It does not click, change menus, or send anything over the network; you do every click.
 
 ## Development
 
@@ -60,7 +73,7 @@ Codex Plunder Pilot only reads what the game already shows you: your Thieving, S
 ./gradlew run     # launch RuneLite with the plugin loaded
 ```
 
-The planner, odds and run tracking (`core/`) are plain Java with unit tests; the panel and overlays are in `ui/` and `overlay/`.
+The planner, odds and run tracking (`core/`) are plain Java with unit tests. The panel and overlays are in `ui/` and `overlay/`.
 
 ## Licence
 

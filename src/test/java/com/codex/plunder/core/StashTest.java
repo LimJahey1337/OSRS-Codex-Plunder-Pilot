@@ -1,0 +1,92 @@
+package com.codex.plunder.core;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import com.google.gson.Gson;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import net.runelite.api.gameval.ItemID;
+import org.junit.Test;
+
+public class StashTest
+{
+	private static final List<Integer> ARTEFACTS = Arrays.asList(ItemID.NTK_IVORY_COMB, ItemID.NTK_STATUETTE_GOLD);
+	private static final String STEWARD = "{\"version\":1,\"savedAt\":500000,\"items\":{\"995\":100,\""
+		+ ItemID.NTK_STATUETTE_GOLD + "\":7},\"truncated\":false}";
+
+	@Test
+	public void theNewerLookAtTheBankWins()
+	{
+		SharedBank steward = SharedBank.read(new Gson(), STEWARD, null);
+		Map<Integer, Long> own = new HashMap<>();
+		own.put(ItemID.NTK_IVORY_COMB, 3L);
+		Stash older = Stash.pick(own, 400_000, steward, ARTEFACTS);
+		assertEquals(SharedBank.Source.BANK_STEWARD, older.getFrom());
+		assertEquals(Collections.singletonMap(ItemID.NTK_STATUETTE_GOLD, 7L), older.getItems());
+		Stash newer = Stash.pick(own, 600_000, steward, ARTEFACTS);
+		assertNull(newer.getFrom());
+		assertEquals(3, newer.count());
+		assertEquals(600_000, newer.getSeenAt());
+	}
+
+	@Test
+	public void gearRoadmapsBankSaysNothingAboutArtefacts()
+	{
+		SharedBank roadmap = SharedBank.read(new Gson(), null, "{\"items\":[" + ItemID.NTK_STATUETTE_GOLD + "],\"coins\":5}");
+		assertNull(Stash.pick(Collections.emptyMap(), 0, roadmap, ARTEFACTS));
+		assertNull(Stash.pick(null, 0, null, ARTEFACTS));
+		// An empty bank seen here is still a look: none banked.
+		assertEquals(0, Stash.pick(Collections.emptyMap(), 10, roadmap, ARTEFACTS).count());
+	}
+
+	@Test
+	public void theLogbookKeepsTheBankedArtefactsThroughASave()
+	{
+		Logbook book = new Logbook();
+		Map<Integer, Long> seen = new HashMap<>();
+		seen.put(ItemID.NTK_IVORY_COMB, 2L);
+		assertEquals(true, book.setBanked(seen, 100));
+		assertEquals(false, book.setBanked(seen, 100));
+		// The same artefacts seen later still need saving: the look's time is what the Steward's is weighed against.
+		assertEquals(true, book.setBanked(seen, 200));
+		assertEquals(200, book.getBankedAt());
+		Logbook back = new Gson().fromJson(new Gson().toJson(book), Logbook.class).repair();
+		assertEquals(Long.valueOf(2), back.getBanked().get(ItemID.NTK_IVORY_COMB));
+		assertEquals(200, back.getBankedAt());
+		assertEquals(0, new Gson().fromJson("{}", Logbook.class).repair().getBanked().size());
+	}
+
+	@Test
+	public void theSameBankVisitIsCreditedToThisPlugin()
+	{
+		// Both plugins saw the bank on the same visit, Bank Steward a few ticks later.
+		SharedBank steward = SharedBank.read(new Gson(), STEWARD, null);
+		Stash same = Stash.pick(Collections.singletonMap(ItemID.NTK_STATUETTE_GOLD, 7L), 500_000 - 1200, steward, ARTEFACTS);
+		assertNull(same.getFrom());
+		assertEquals(500_000 - 1200, same.getSeenAt());
+	}
+
+	@Test
+	public void anUnchangedBankVisitIsStillThisPluginsAfterARestart()
+	{
+		Gson gson = new Gson();
+		Logbook book = new Logbook();
+		Map<Integer, Long> seen = new HashMap<>();
+		seen.put(ItemID.NTK_STATUETTE_GOLD, 7L);
+		book.setBanked(seen, 100_000);
+		String saved = gson.toJson(book);
+		// Back at the bank much later, nothing changed. Bank Steward saves the same visit a moment after.
+		if (book.setBanked(seen, 480_000))
+		{
+			saved = gson.toJson(book);
+		}
+		Logbook restarted = gson.fromJson(saved, Logbook.class).repair();
+		SharedBank steward = SharedBank.read(gson, STEWARD, null);
+		Stash stash = Stash.pick(restarted.getBanked(), restarted.getBankedAt(), steward, ARTEFACTS);
+		assertNull(stash.getFrom());
+		assertEquals(480_000, stash.getSeenAt());
+	}
+}

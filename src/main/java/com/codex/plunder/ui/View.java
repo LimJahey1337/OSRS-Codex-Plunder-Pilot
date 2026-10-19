@@ -2,9 +2,12 @@ package com.codex.plunder.ui;
 
 import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
+import com.codex.plunder.core.NavigatorGoals;
 import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Run;
+import com.codex.plunder.core.Session;
+import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Step;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +34,13 @@ public final class View
 		final long totalArtefacts;
 		final int recentRate;
 		final int paceSamples;
+		/** The best splits as they stood before the newest run that reached the deepest room, or null. */
+		Splits splits;
+		/** The newest run that reached the deepest room for this goal, or null. */
+		Run splitRun;
+		Session session;
+		/** Every session in the runs kept, newest first. */
+		List<Session> history = Collections.emptyList();
 
 		public Record(List<Run> runs, long[] opened, int sceptres, long totalRuns, long totalXp, long totalArtefacts, int recentRate, int paceSamples)
 		{
@@ -42,6 +52,29 @@ public final class View
 			this.totalArtefacts = totalArtefacts;
 			this.recentRate = recentRate;
 			this.paceSamples = paceSamples;
+		}
+
+		/**
+		 * @param prior the splits from the runs before {@code last}
+		 * @param last the newest run that reached the deepest room, or null
+		 */
+		public Record splits(Splits prior, Run last)
+		{
+			this.splits = prior;
+			this.splitRun = last;
+			return this;
+		}
+
+		public Record session(Session session)
+		{
+			this.session = session;
+			return this;
+		}
+
+		public Record history(List<Session> history)
+		{
+			this.history = history == null ? Collections.emptyList() : history;
+			return this;
 		}
 
 		static Record empty()
@@ -58,9 +91,17 @@ public final class View
 		final long artefacts;
 		final int opened;
 		final double sceptreSoFar;
+		/** Ticks ahead (negative) or behind the best run on entering this room, or null with nothing to compare. */
+		final Integer split;
 
 		public Live(int ticksLeft, int thievingXp, long artefacts, int opened, double sceptreSoFar)
 		{
+			this(ticksLeft, thievingXp, artefacts, opened, sceptreSoFar, null);
+		}
+
+		public Live(int ticksLeft, int thievingXp, long artefacts, int opened, double sceptreSoFar, Integer split)
+		{
+			this.split = split;
 			this.ticksLeft = ticksLeft;
 			this.thievingXp = thievingXp;
 			this.artefacts = artefacts;
@@ -84,6 +125,59 @@ public final class View
 		}
 	}
 
+	/** The artefacts waiting in the bank to be sold. */
+	public static final class Stash
+	{
+		/** One kind of artefact. */
+		public static final class Line
+		{
+			public final int itemId;
+			public final String name;
+			public final long count;
+			public final long value;
+
+			public Line(int itemId, String name, long count, long value)
+			{
+				this.itemId = itemId;
+				this.name = name;
+				this.count = count;
+				this.value = value;
+			}
+		}
+
+		final List<Line> lines;
+		final long seenAt;
+		/** The plugin whose saved bank this is, or null when this plugin saw the bank. */
+		final String from;
+
+		public Stash(List<Line> lines, long seenAt, String from)
+		{
+			this.lines = lines == null ? Collections.emptyList() : lines;
+			this.seenAt = seenAt;
+			this.from = from;
+		}
+
+		long count()
+		{
+			long n = 0;
+			for (Line l : lines)
+			{
+				n += l.count;
+			}
+			return n;
+		}
+
+		long value()
+		{
+			long n = 0;
+			for (Line l : lines)
+			{
+				n += l.value;
+			}
+			return n;
+		}
+	}
+
 	final State state;
 	final String player;
 	final int level;
@@ -101,6 +195,11 @@ public final class View
 	final Record record;
 	final long now;
 	Ready ready;
+	Stash stash;
+	/** The Thieving levels Codex Navigator's pinned goals still need; empty without Navigator. */
+	List<NavigatorGoals.Need> goals = Collections.emptyList();
+	/** Whether the pyramid card names the player; off to share it without the name. */
+	boolean nameOnCard = true;
 
 	public View(State state, String player, int level, long xp, int targetLevel, Goal goal, Plan plan, Plan fresh,
 		List<Plan> ladder, Step step, Live live, Record record, long now)
@@ -123,6 +222,24 @@ public final class View
 	public View ready(Ready ready)
 	{
 		this.ready = ready;
+		return this;
+	}
+
+	public View stash(Stash stash)
+	{
+		this.stash = stash;
+		return this;
+	}
+
+	public View goals(List<NavigatorGoals.Need> goals)
+	{
+		this.goals = goals == null ? Collections.emptyList() : goals;
+		return this;
+	}
+
+	public View nameOnCard(boolean value)
+	{
+		nameOnCard = value;
 		return this;
 	}
 
