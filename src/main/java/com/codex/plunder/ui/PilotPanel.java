@@ -3,7 +3,9 @@ package com.codex.plunder.ui;
 import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Levels;
+import com.codex.plunder.core.NavigatorGoals;
 import com.codex.plunder.core.Odds;
+import com.codex.plunder.core.Outlook;
 import com.codex.plunder.core.Pace;
 import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Planner;
@@ -157,13 +159,18 @@ public class PilotPanel extends PluginPanel
 		}
 		String common = view.state + "|" + view.level + "|" + view.goal + "|" + r.totalRuns + "|" + r.runs.size() + "|" + r.sceptres
 			+ "|" + r.paceSamples;
-		String odds = common + "|" + opened;
+		String odds = common + "|" + opened + "|" + view.now / 86_400_000L;
 		if (!odds.equals(oddsShown))
 		{
 			oddsShown = odds;
 			rebuildOdds();
 		}
-		String runsKey = common + "|" + view.xp + "|" + view.targetLevel + "|" + r.recentRate + "|" + view.now / 60_000L;
+		StringBuilder goals = new StringBuilder();
+		for (NavigatorGoals.Need n : view.goals)
+		{
+			goals.append(n.getGoal()).append(n.getLevel()).append(',');
+		}
+		String runsKey = common + "|" + view.xp + "|" + view.targetLevel + "|" + r.recentRate + "|" + view.now / 60_000L + "|" + goals;
 		if (!runsKey.equals(runsShown))
 		{
 			runsShown = runsKey;
@@ -342,6 +349,19 @@ public class PilotPanel extends PluginPanel
 		lines.add(line("Nine in ten", Format.amount(Odds.runsFor(perRun, 0.9)) + " runs", Theme.GOLD));
 		lines.add(line("In an hour", Format.percent(fresh.sceptrePerHour(Planner.RESTART_TICKS)), Theme.GOLD));
 		forecast.add(lines, BorderLayout.CENTER);
+		Outlook outlook = Outlook.of(r.history, view.now);
+		long even = outlook.afterRuns(Odds.runsFor(perRun, 0.5), view.now);
+		if (even > 0)
+		{
+			// The run counts above, turned into days at the pace the player really comes back.
+			long nine = outlook.afterRuns(Odds.runsFor(perRun, 0.9), view.now);
+			StackPanel dates = new StackPanel(4, 0);
+			dates.add(line("Even odds by", Format.shortDay(even), Theme.TEAL));
+			dates.add(line("Nine in ten by", nine > 0 ? Format.shortDay(nine) : "years off", Theme.TEAL));
+			dates.add(Ui.wrapped("At your pace: " + Format.duration(Math.round(outlook.hoursPerWeek() * 3_600_000L)) + " a week here, over the last four weeks.",
+				Theme.small(), Theme.TEXT_FAINT, WIDTH - 30));
+			forecast.add(dates, BorderLayout.SOUTH);
+		}
 		stack.add(forecast);
 		if (view.goal == Goal.EXPERIENCE)
 		{
@@ -403,14 +423,26 @@ public class PilotPanel extends PluginPanel
 			goalCard.add(Ui.label("Thieving " + target, Theme.body(), Theme.GOLD), BorderLayout.NORTH);
 			String hours = Format.duration(Math.round(left * 3_600_000.0 / Math.max(1, rate)));
 			goalCard.add(new Meter(Format.amount(left) + " xp, about " + Format.amount(runsLeft) + " runs", hours, share, Theme.GOLD, -1), BorderLayout.CENTER);
+			Outlook outlook = Outlook.of(r.history, view.now);
+			StackPanel south = new StackPanel(4, 0);
+			long by = outlook.afterHours(left / (double) Math.max(1, rate), view.now);
+			if (by > 0)
+			{
+				south.add(Ui.label("About " + Format.shortDay(by) + " at your pace", Theme.small(), Theme.TEAL));
+			}
 			int unlock = Room.nextUnlock(view.level);
 			if (unlock > 0 && unlock < target)
 			{
 				long toUnlock = Math.max(0, Levels.xpFor(unlock) - view.xp);
-				goalCard.add(Ui.wrapped("Room " + Room.highest(unlock).getNumber() + " opens at " + unlock + ", " + Format.amount(toUnlock)
-					+ " xp away, and every run after pays more.", Theme.small(), Theme.TEXT_MUTED, WIDTH - 30), BorderLayout.SOUTH);
+				south.add(Ui.wrapped("Room " + Room.highest(unlock).getNumber() + " opens at " + unlock + ", " + Format.amount(toUnlock)
+					+ " xp away, and every run after pays more.", Theme.small(), Theme.TEXT_MUTED, WIDTH - 30));
+			}
+			if (south.getComponentCount() > 0)
+			{
+				goalCard.add(south, BorderLayout.SOUTH);
 			}
 			stack.add(goalCard);
+			addGoals(stack, fresh, rate, outlook);
 		}
 
 		addStash(stack, view.stash);
@@ -448,6 +480,45 @@ public class PilotPanel extends PluginPanel
 	}
 
 	/** The sitting in hand, or the last one: what it earned, its rate and the sceptre chance it carried. */
+	/**
+	 * The Thieving levels Codex Navigator's pinned goals need, each with the runs, play time and
+	 * date it takes at the Pilot's plan and the player's pace.
+	 */
+	private void addGoals(StackPanel stack, Plan fresh, int rate, Outlook outlook)
+	{
+		if (view.goals.isEmpty())
+		{
+			return;
+		}
+		stack.add(new SectionHeader("For your goals", "Navigator"));
+		Card card = new Card(new BorderLayout());
+		card.accent(Theme.TEAL);
+		StackPanel rows = new StackPanel(6, 0);
+		int perRun = Math.max(1, fresh.getThievingXp());
+		for (NavigatorGoals.Need n : view.goals)
+		{
+			long left = Math.max(0, Levels.xpFor(n.getLevel()) - view.xp);
+			long runsLeft = (left + perRun - 1) / perRun;
+			double hours = left / (double) Math.max(1, rate);
+			long by = outlook.afterHours(hours, view.now);
+			JPanel row = new JPanel(new BorderLayout(0, 1));
+			row.setOpaque(false);
+			JPanel top = new JPanel(new BorderLayout(6, 0));
+			top.setOpaque(false);
+			JLabel title = Ui.label(n.getGoal(), Theme.body(), n.isFocus() ? Theme.GOLD_BRIGHT : Theme.TEXT);
+			title.setToolTipText(n.getGoal() + (n.isFocus() ? ", your Navigator focus" : "") + ", needs Thieving " + n.getLevel());
+			top.add(title, BorderLayout.CENTER);
+			top.add(Ui.label(String.valueOf(n.getLevel()), Theme.body(), Theme.GOLD), BorderLayout.EAST);
+			row.add(top, BorderLayout.NORTH);
+			String how = Format.amount(runsLeft) + (runsLeft == 1 ? " run, " : " runs, ")
+				+ Format.duration(Math.round(hours * 3_600_000L)) + (by > 0 ? ", " + Format.shortDay(by) : "");
+			row.add(Ui.label(how, Theme.small(), Theme.TEXT_MUTED), BorderLayout.SOUTH);
+			rows.add(row);
+		}
+		card.add(rows, BorderLayout.CENTER);
+		stack.add(card);
+	}
+
 	private void addSession(StackPanel stack, Session s)
 	{
 		if (s == null || s.isEmpty())

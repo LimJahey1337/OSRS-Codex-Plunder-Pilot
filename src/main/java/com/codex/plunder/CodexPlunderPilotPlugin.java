@@ -4,6 +4,7 @@ import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Here;
 import com.codex.plunder.core.Logbook;
+import com.codex.plunder.core.NavigatorGoals;
 import com.codex.plunder.core.Odds;
 import com.codex.plunder.core.Pace;
 import com.codex.plunder.core.Plan;
@@ -33,6 +34,7 @@ import com.google.gson.JsonParseException;
 import com.google.inject.Provides;
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -191,6 +193,10 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private int seenLevel = -1;
 	/** The whole bank another Codex plugin saved, read with {@link #sharedBanked}; null when none is saved. */
 	private SharedBank sharedBank;
+	/** Codex Navigator's goal board as saved for this profile, or null; and the Thieving levels it needs, read from it. */
+	private String navBoard;
+	private List<NavigatorGoals.Need> navNeeds = Collections.emptyList();
+	private int navLevel = -1;
 
 	@Provides
 	CodexPlunderPilotConfig provideConfig(ConfigManager configManager)
@@ -280,6 +286,17 @@ public class CodexPlunderPilotPlugin extends Plugin
 		if (CodexPlunderPilotConfig.GROUP.equals(event.getGroup()))
 		{
 			dirty = true;
+		}
+		else if (NavigatorGoals.GROUP.equals(event.getGroup()) && NavigatorGoals.KEY.equals(event.getKey()))
+		{
+			clientThread.invokeLater(() ->
+			{
+				if (profile != null && profile.equals(configManager.getRSProfileKey()))
+				{
+					readNavigator();
+					dirty = true;
+				}
+			});
 		}
 		else if (SharedBank.STEWARD_GROUP.equals(event.getGroup()) && SharedBank.STEWARD_KEY.equals(event.getKey())
 			|| SharedBank.ROADMAP_GROUP.equals(event.getGroup()) && SharedBank.ROADMAP_KEY.equals(event.getKey()))
@@ -1130,8 +1147,27 @@ public class CodexPlunderPilotPlugin extends Plugin
 			logbook = new Logbook();
 		}
 		sharedBanked = readSharedBank();
+		readNavigator();
 		unsaved = false;
 		dirty = true;
+	}
+
+	/** Reads Codex Navigator's goal board for this profile; never writes it. */
+	private void readNavigator()
+	{
+		navBoard = profile == null ? null : configManager.getRSProfileConfiguration(NavigatorGoals.GROUP, NavigatorGoals.KEY);
+		navLevel = -1;
+	}
+
+	/** The Thieving levels the goals need above the level now, read again only when the board or level changes. */
+	private List<NavigatorGoals.Need> navigatorNeeds(int level)
+	{
+		if (level != navLevel)
+		{
+			navLevel = level;
+			navNeeds = NavigatorGoals.needs(gson, navBoard, "Thieving", level);
+		}
+		return navNeeds;
 	}
 
 	private void save()
@@ -1214,7 +1250,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 				view.ready(new View.Ready(Check.ready(kit, fresh, logbook.slotsNeeded(fresh, 10)), pack.artefacts, pack.artefactValue));
 			}
 		}
-		view.stash(stash());
+		view.stash(stash()).goals(navigatorNeeds(level));
 		SwingUtilities.invokeLater(() -> target.update(view));
 	}
 

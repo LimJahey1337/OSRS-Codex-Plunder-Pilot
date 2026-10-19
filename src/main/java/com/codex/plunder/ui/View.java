@@ -2,6 +2,7 @@ package com.codex.plunder.ui;
 
 import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
+import com.codex.plunder.core.NavigatorGoals;
 import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Run;
@@ -195,6 +196,8 @@ public final class View
 	final long now;
 	Ready ready;
 	Stash stash;
+	/** The Thieving levels Codex Navigator's pinned goals still need; empty without Navigator. */
+	List<NavigatorGoals.Need> goals = Collections.emptyList();
 
 	public View(State state, String player, int level, long xp, int targetLevel, Goal goal, Plan plan, Plan fresh,
 		List<Plan> ladder, Step step, Live live, Record record, long now)
@@ -223,6 +226,12 @@ public final class View
 	public View stash(Stash stash)
 	{
 		this.stash = stash;
+		return this;
+	}
+
+	public View goals(List<NavigatorGoals.Need> goals)
+	{
+		this.goals = goals == null ? Collections.emptyList() : goals;
 		return this;
 	}
 
