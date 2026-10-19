@@ -14,6 +14,7 @@ import com.codex.plunder.core.Run;
 import com.codex.plunder.core.RunTracker;
 import com.codex.plunder.core.Sceptre;
 import com.codex.plunder.core.Session;
+import com.codex.plunder.core.SharedBank;
 import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Step;
 import com.codex.plunder.overlay.PilotPlaque;
@@ -115,9 +116,6 @@ public class CodexPlunderPilotPlugin extends Plugin
 	 * {@link Sceptre}: it is only believed once a game message naming the charges agrees with it.
 	 */
 	private static final int SCEPTRE_CHARGES_VARP = VarPlayerID.PHARAOHS_SCEPTRE;
-	/** Codex Gear Roadmap keeps the bank it last saw here (item ids), read only when that plugin has saved one. */
-	private static final String GEAR_ROADMAP_GROUP = "codexgearroadmap";
-	private static final String GEAR_ROADMAP_BANK = "bank";
 
 	@Inject
 	private Client client;
@@ -183,8 +181,8 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private int finishedTick = -1000;
 	/** A message named the sceptre's charges; next tick it is held up against the player variable. */
 	private boolean compareSceptre;
-	/** The sceptre in Codex Gear Roadmap's saved bank, read once per profile; null when it has none saved. */
-	private Check.SceptreKit roadmapBanked;
+	/** The sceptre in the bank Codex Bank Steward or Gear Roadmap saved, read per profile and when they save; null when none is saved. */
+	private Check.SceptreKit sharedBanked;
 
 	@Provides
 	CodexPlunderPilotConfig provideConfig(ConfigManager configManager)
@@ -271,6 +269,19 @@ public class CodexPlunderPilotPlugin extends Plugin
 		if (CodexPlunderPilotConfig.GROUP.equals(event.getGroup()))
 		{
 			dirty = true;
+		}
+		else if (SharedBank.STEWARD_GROUP.equals(event.getGroup()) && SharedBank.STEWARD_KEY.equals(event.getKey())
+			|| SharedBank.ROADMAP_GROUP.equals(event.getGroup()) && SharedBank.ROADMAP_KEY.equals(event.getKey()))
+		{
+			// Another Codex plugin saved the bank; it only counts for the profile in hand.
+			clientThread.invokeLater(() ->
+			{
+				if (profile != null && profile.equals(configManager.getRSProfileKey()) && logbook != null)
+				{
+					sharedBanked = readSharedBank();
+					dirty = true;
+				}
+			});
 		}
 	}
 
@@ -407,7 +418,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		return b.ordinal() > a.ordinal() ? b : a;
 	}
 
-	/** The sceptre waiting in the bank: as this plugin last saw it, else as Codex Gear Roadmap saved it. */
+	/** The sceptre waiting in the bank: as this plugin last saw it, else as Codex Bank Steward or Gear Roadmap saved it. */
 	private Check.SceptreKit sceptreBanked()
 	{
 		Check.SceptreKit seen = logbook.getSceptre().getBanked();
@@ -415,48 +426,30 @@ public class CodexPlunderPilotPlugin extends Plugin
 		{
 			return seen;
 		}
-		return roadmapBanked == null ? Check.SceptreKit.NONE : roadmapBanked;
+		return sharedBanked == null ? Check.SceptreKit.NONE : sharedBanked;
 	}
 
 	/**
-	 * The sceptre in Codex Gear Roadmap's last saved bank, if that plugin is installed and has seen
-	 * it. It saves only the gear it knows, which takes in the emptied and the charged sceptre but
-	 * not the freshly found one, so that one is missed until this plugin sees the bank itself.
+	 * The sceptre in the bank another Codex plugin last saved: Codex Bank Steward's full bank,
+	 * else Codex Gear Roadmap's. Roadmap saves only the gear it knows, which takes in the emptied
+	 * and the charged sceptre but not the freshly found one; the Steward's holds everything.
+	 * Null when neither is installed or has seen the bank.
 	 */
-	private Check.SceptreKit readRoadmapBank()
+	private Check.SceptreKit readSharedBank()
 	{
-		try
-		{
-			String json = configManager.getRSProfileConfiguration(GEAR_ROADMAP_GROUP, GEAR_ROADMAP_BANK);
-			if (json == null || json.isEmpty())
-			{
-				return null;
-			}
-			SavedBank bank = gson.fromJson(json, SavedBank.class);
-			if (bank == null || bank.items == null)
-			{
-				return null;
-			}
-			Check.SceptreKit kit = Check.SceptreKit.NONE;
-			for (Integer id : bank.items)
-			{
-				if (id != null)
-				{
-					kit = better(kit, sceptreKit(id));
-				}
-			}
-			return kit;
-		}
-		catch (JsonParseException e)
+		SharedBank bank = SharedBank.read(gson,
+			configManager.getRSProfileConfiguration(SharedBank.STEWARD_GROUP, SharedBank.STEWARD_KEY),
+			configManager.getRSProfileConfiguration(SharedBank.ROADMAP_GROUP, SharedBank.ROADMAP_KEY));
+		if (bank == null)
 		{
 			return null;
 		}
-	}
-
-	/** The shape Codex Gear Roadmap saves its bank in; only the item ids are read. */
-	private static final class SavedBank
-	{
-		List<Integer> items;
+		Check.SceptreKit kit = Check.SceptreKit.NONE;
+		for (int id : bank.ids())
+		{
+			kit = better(kit, sceptreKit(id));
+		}
+		return kit;
 	}
 
 	// Experience and the pack.
@@ -1025,7 +1018,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 	{
 		profile = configManager.getRSProfileKey();
 		logbook = null;
-		roadmapBanked = null;
+		sharedBanked = null;
 		splitBooks.clear();
 		splitBooksRuns = -1;
 		if (profile == null)
@@ -1049,7 +1042,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		{
 			logbook = new Logbook();
 		}
-		roadmapBanked = readRoadmapBank();
+		sharedBanked = readSharedBank();
 		unsaved = false;
 		dirty = true;
 	}
