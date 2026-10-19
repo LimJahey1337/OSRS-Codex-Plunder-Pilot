@@ -54,4 +54,36 @@ public class SessionTest
 		assertEquals(9, s.best().getThievingXp());
 		assertTrue(Session.latest(Collections.emptyList(), 0).isEmpty());
 	}
+
+	@Test
+	public void historySplitsEveryRunIntoSessionsNewestFirst()
+	{
+		// Three sittings: two runs at minute 0, three around minute 100, one at minute 300 still going.
+		java.util.List<Run> runs = Arrays.asList(run(0, 10_000, 0, false), run(6, 10_000, 0, false),
+			run(100, 30_000, 0, false), run(106, 30_000, 0, false), run(112, 30_000, 0, false),
+			run(300, 90_000, 0, false));
+		java.util.List<Session> all = Session.history(runs, 306 * MIN);
+		assertEquals(3, all.size());
+		assertEquals(1, all.get(0).getRuns().size());
+		assertTrue(all.get(0).isCurrent());
+		assertEquals(3, all.get(1).getRuns().size());
+		assertFalse(all.get(1).isCurrent());
+		assertEquals(2, all.get(2).getRuns().size());
+		// The newest agrees with latest().
+		assertEquals(Session.latest(runs, 306 * MIN).getXp(), all.get(0).getXp());
+		// The lone 90k run is quicker, but too short to be called the best session.
+		assertTrue(all.get(0).xpPerHour() > all.get(1).xpPerHour());
+		assertEquals(all.get(1), Session.best(all));
+		assertTrue(Session.history(Collections.emptyList(), 0).isEmpty());
+		assertEquals(null, Session.best(Session.history(runs.subList(0, 2), 0)));
+	}
+
+	@Test
+	public void aRunJustOverTheBreakStartsANewSession()
+	{
+		// A five minute run ending at minute 5; the next starts exactly 20 minutes later, then just after.
+		assertEquals(1, Session.history(Arrays.asList(run(0, 1, 0, false), run(25, 1, 0, false)), 30 * MIN).size());
+		assertEquals(2, Session.history(Arrays.asList(run(0, 1, 0, false), new Run(25 * MIN + 1, 500, 8, 1, 0, 20, 2, 0, 1000, 2, 0, false,
+			Goal.EXPERIENCE)), 30 * MIN).size());
+	}
 }

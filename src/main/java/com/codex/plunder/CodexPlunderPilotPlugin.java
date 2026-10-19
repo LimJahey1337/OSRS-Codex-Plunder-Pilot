@@ -16,7 +16,9 @@ import com.codex.plunder.core.Sceptre;
 import com.codex.plunder.core.Session;
 import com.codex.plunder.core.SharedBank;
 import com.codex.plunder.core.Splits;
+import com.codex.plunder.core.Stash;
 import com.codex.plunder.core.Step;
+import com.codex.plunder.core.Unlock;
 import com.codex.plunder.overlay.PilotPlaque;
 import com.codex.plunder.overlay.RoomHighlights;
 import com.codex.plunder.ui.Actions;
@@ -183,6 +185,10 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private boolean compareSceptre;
 	/** The sceptre in the bank Codex Bank Steward or Gear Roadmap saved, read per profile and when they save; null when none is saved. */
 	private Check.SceptreKit sharedBanked;
+	/** The Thieving level as read on the last tick since login, or -1 before the first read. */
+	private int seenLevel = -1;
+	/** The whole bank another Codex plugin saved, read with {@link #sharedBanked}; null when none is saved. */
+	private SharedBank sharedBank;
 
 	@Provides
 	CodexPlunderPilotConfig provideConfig(ConfigManager configManager)
@@ -207,6 +213,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		{
 			loadProfile();
 			lastXp.clear();
+			seenLevel = -1;
 			lastPack = null;
 			lastSceptres = -1;
 			publish(null);
@@ -245,6 +252,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 				endRun();
 				save();
 				lastXp.clear();
+				seenLevel = -1;
 				lastPack = null;
 			lastSceptres = -1;
 				publish(null);
@@ -260,6 +268,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		save();
 		loadProfile();
 		lastXp.clear();
+		seenLevel = -1;
 		dirty = true;
 	}
 
@@ -440,6 +449,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		SharedBank bank = SharedBank.read(gson,
 			configManager.getRSProfileConfiguration(SharedBank.STEWARD_GROUP, SharedBank.STEWARD_KEY),
 			configManager.getRSProfileConfiguration(SharedBank.ROADMAP_GROUP, SharedBank.ROADMAP_KEY));
+		sharedBank = bank;
 		if (bank == null)
 		{
 			return null;
@@ -496,6 +506,19 @@ public class CodexPlunderPilotPlugin extends Plugin
 				banked = better(banked, sceptreKit(item.getId()));
 			}
 			if (logbook.getSceptre().setBanked(banked))
+			{
+				unsaved = true;
+				dirty = true;
+			}
+			Map<Integer, Long> artefacts = new HashMap<>();
+			for (Item item : event.getItemContainer().getItems())
+			{
+				if (ARTEFACTS.contains(item.getId()) && item.getQuantity() > 0)
+				{
+					artefacts.merge(item.getId(), (long) item.getQuantity(), Long::sum);
+				}
+			}
+			if (logbook.setBanked(artefacts, System.currentTimeMillis()))
 			{
 				unsaved = true;
 				dirty = true;
@@ -631,6 +654,16 @@ public class CodexPlunderPilotPlugin extends Plugin
 		}
 		int level = client.getRealSkillLevel(Skill.THIEVING);
 		long xp = client.getSkillExperience(Skill.THIEVING);
+		if (xp > 0)
+		{
+			// Only a level gained while watching opens a room: a level read at login, or one gained
+			// on another device, is not news.
+			if (seenLevel > 0 && level > seenLevel && config.roomOpens())
+			{
+				announceOpened(Unlock.opened(seenLevel, level, logbook.getGoal(), logbook.getPace()));
+			}
+			seenLevel = level;
+		}
 		if (level != logbook.getLevel() || xp != logbook.getXp())
 		{
 			logbook.seen(level, xp);
@@ -928,12 +961,52 @@ public class CodexPlunderPilotPlugin extends Plugin
 			{
 				message.append(". Session: " + session.getRuns().size() + " runs, " + Format.amount(session.xpPerHour()) + " xp/hr");
 			}
+			long toNext = Unlock.runsToNext(logbook.getLevel(), logbook.getXp(), run.getThievingXp());
+			if (toNext > 0 && toNext <= Unlock.SOON_RUNS)
+			{
+				Room next = Room.highest(Room.nextUnlock(logbook.getLevel()));
+				message.append(". Room " + next.getNumber() + " opens " + (toNext == 1 ? "after one more run like this" : "in about " + toNext + " runs"));
+			}
 			message.append(".");
 			chatMessageManager.queue(QueuedMessage.builder()
 				.type(ChatMessageType.CONSOLE)
 				.runeLiteFormattedMessage(message.build())
 				.build());
 		}
+	}
+
+	/** A line in the chat box when a level opens a deeper room, with what a run pays there now. */
+	private void announceOpened(Unlock.Opened opened)
+	{
+		if (opened == null)
+		{
+			return;
+		}
+		Room room = opened.getRoom();
+		StringBuilder text = new StringBuilder("Thieving " + room.getLevel() + " opens room " + room.getNumber() + ". ");
+		if (opened.getRunXpBefore() > 0)
+		{
+			text.append("A run now pays about " + Format.amount(opened.getRunXpNow()) + " xp, up from " + Format.amount(opened.getRunXpBefore())
+				+ ": " + Format.amount(opened.getRateNow()) + " xp/hr.");
+		}
+		else
+		{
+			text.append("A run pays about " + Format.amount(opened.getRunXpNow()) + " xp: " + Format.amount(opened.getRateNow()) + " xp/hr.");
+		}
+		chat(text.toString());
+	}
+
+	private void chat(String text)
+	{
+		chatMessageManager.queue(QueuedMessage.builder()
+			.type(ChatMessageType.CONSOLE)
+			.runeLiteFormattedMessage(new ChatMessageBuilder()
+				.append(ChatColorType.HIGHLIGHT)
+				.append("Plunder Pilot: ")
+				.append(ChatColorType.NORMAL)
+				.append(text)
+				.build())
+			.build());
 	}
 
 	/** Ticks the room's split stays on the plaque after entering it: about ten seconds. */
@@ -1019,6 +1092,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		profile = configManager.getRSProfileKey();
 		logbook = null;
 		sharedBanked = null;
+		sharedBank = null;
 		splitBooks.clear();
 		splitBooksRuns = -1;
 		if (profile == null)
@@ -1095,7 +1169,8 @@ public class CodexPlunderPilotPlugin extends Plugin
 		View.Record record = new View.Record(new ArrayList<>(logbook.getRuns()), logbook.getOpened(), logbook.getSceptres(),
 			logbook.getTotalRuns(), logbook.getTotalXp(), logbook.getTotalArtefacts(), logbook.recentRate(10), pace.getUrnSamples())
 			.splits(book.prior, book.last)
-			.session(Session.latest(logbook.getRuns(), now));
+			.session(Session.latest(logbook.getRuns(), now))
+			.history(Session.history(logbook.getRuns(), now));
 		String name = loggedIn ? client.getLocalPlayer().getName() : null;
 		Plan fresh = Planner.fresh(level, goal, pace);
 		View view;
@@ -1126,7 +1201,27 @@ public class CodexPlunderPilotPlugin extends Plugin
 				view.ready(new View.Ready(Check.ready(kit, fresh, logbook.slotsNeeded(fresh, 10)), pack.artefacts, pack.artefactValue));
 			}
 		}
+		view.stash(stash());
 		SwingUtilities.invokeLater(() -> target.update(view));
+	}
+
+	/** The artefacts in the bank, valued at the Grand Exchange, from whichever look at the bank is newer. */
+	private View.Stash stash()
+	{
+		Stash stash = Stash.pick(logbook.getBanked(), logbook.getBankedAt(), sharedBank, ARTEFACTS);
+		if (stash == null)
+		{
+			return null;
+		}
+		List<View.Stash.Line> lines = new ArrayList<>();
+		for (Map.Entry<Integer, Long> e : stash.getItems().entrySet())
+		{
+			int id = e.getKey();
+			lines.add(new View.Stash.Line(id, itemManager.getItemComposition(id).getName(), e.getValue(), e.getValue() * itemManager.getItemPrice(id)));
+		}
+		// The most valuable first.
+		lines.sort((a, b) -> a.value != b.value ? Long.compare(b.value, a.value) : Integer.compare(a.itemId, b.itemId));
+		return new View.Stash(lines, stash.getSeenAt(), stash.getFrom() == SharedBank.Source.BANK_STEWARD ? "Codex Bank Steward" : null);
 	}
 
 	private final class PanelActions implements Actions

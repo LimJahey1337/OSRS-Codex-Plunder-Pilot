@@ -3,6 +3,8 @@ package com.codex.plunder.core;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Everything kept per account: the learned pace, the chosen goal, every run, and every chest
@@ -25,6 +27,9 @@ public final class Logbook
 	private long totalArtefacts;
 	private long totalTicks;
 	private Sceptre sceptre = new Sceptre();
+	/** Artefacts in the bank as last seen here, by item id. */
+	private Map<Integer, Long> banked = new TreeMap<>();
+	private long bankedAt;
 
 	public Pace getPace()
 	{
@@ -66,6 +71,32 @@ public final class Logbook
 			sceptre = new Sceptre();
 		}
 		return sceptre;
+	}
+
+	/** Artefacts in the bank as last seen here. */
+	public Map<Integer, Long> getBanked()
+	{
+		return Collections.unmodifiableMap(banked);
+	}
+
+	/** When the bank was last seen here, 0 for never. */
+	public long getBankedAt()
+	{
+		return bankedAt;
+	}
+
+	/**
+	 * The artefacts the bank holds, seen now.
+	 *
+	 * @return whether they differ from the last look, so the save is worth writing
+	 */
+	public boolean setBanked(Map<Integer, Long> artefacts, long at)
+	{
+		Map<Integer, Long> next = new TreeMap<>(artefacts);
+		boolean changed = !next.equals(banked) || bankedAt == 0;
+		banked = next;
+		bankedAt = at;
+		return changed;
 	}
 
 	public List<Run> getRuns()
@@ -217,6 +248,8 @@ public final class Logbook
 		{
 			sceptre = new Sceptre();
 		}
+		banked = banked == null ? new TreeMap<>() : new TreeMap<>(banked);
+		banked.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() <= 0);
 		if (opened == null || opened.length != Room.values().length)
 		{
 			long[] fixed = new long[Room.values().length];

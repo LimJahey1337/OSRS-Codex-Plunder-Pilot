@@ -115,7 +115,7 @@ class SplitTable extends JComponent
 		g.dispose();
 	}
 
-	private static void diamond(Graphics2D g, int x, int y, Color c)
+	static void diamond(Graphics2D g, int x, int y, Color c)
 	{
 		Path2D d = new Path2D.Float();
 		d.moveTo(x, y - 3);

@@ -80,6 +80,51 @@ public final class Session
 		return new Session(picked, current);
 	}
 
+	/** Sessions shorter than this many runs are never called the best: one lucky run is not a pace. */
+	public static final int BEST_MIN_RUNS = 3;
+
+	/**
+	 * Every session in the runs kept, newest first. The oldest may have begun before the first run
+	 * still kept, so it can be shorter than it was.
+	 *
+	 * @param runs every run kept, oldest first
+	 * @param now the time now, to tell whether the newest session is still going
+	 */
+	public static List<Session> history(List<Run> runs, long now)
+	{
+		List<Session> out = new ArrayList<>();
+		if (runs == null || runs.isEmpty())
+		{
+			return out;
+		}
+		List<Run> group = new ArrayList<>();
+		for (Run r : runs)
+		{
+			if (!group.isEmpty() && r.getAt() - end(group.get(group.size() - 1)) > BREAK_MS)
+			{
+				out.add(0, new Session(group, false));
+				group = new ArrayList<>();
+			}
+			group.add(r);
+		}
+		out.add(0, new Session(group, now - end(group.get(group.size() - 1)) <= BREAK_MS));
+		return out;
+	}
+
+	/** The session with the best experience an hour of at least {@link #BEST_MIN_RUNS} runs, or null. */
+	public static Session best(List<Session> sessions)
+	{
+		Session best = null;
+		for (Session s : sessions)
+		{
+			if (s.runs.size() >= BEST_MIN_RUNS && (best == null || s.xpPerHour() > best.xpPerHour()))
+			{
+				best = s;
+			}
+		}
+		return best;
+	}
+
 	private static long end(Run r)
 	{
 		return r.getAt() + r.getTicks() * TICK_MS;

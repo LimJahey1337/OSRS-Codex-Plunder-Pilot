@@ -18,6 +18,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.GridLayout;
+import java.util.List;
 import java.util.Locale;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -386,6 +387,7 @@ public class PilotPanel extends PluginPanel
 		stack.add(tiles);
 
 		addSession(stack, r.session);
+		addHistory(stack, r.history);
 
 		int target = Math.max(view.level + 1, Math.min(99, view.targetLevel));
 		if (view.level < 99)
@@ -410,6 +412,8 @@ public class PilotPanel extends PluginPanel
 			}
 			stack.add(goalCard);
 		}
+
+		addStash(stack, view.stash);
 
 		stack.add(new SectionHeader("The ladder", "xp an hour"));
 		Card ladder = new Card(new BorderLayout());
@@ -484,6 +488,74 @@ public class PilotPanel extends PluginPanel
 		}
 		card.add(lines, BorderLayout.SOUTH);
 		stack.add(card);
+	}
+
+	/** The most past sessions listed. */
+	private static final int PAST_SESSIONS = 8;
+
+	/** Every session kept, newest first, each against the best one's pace. */
+	private void addHistory(StackPanel stack, List<Session> history)
+	{
+		if (history.size() < 2)
+		{
+			return;
+		}
+		Session best = Session.best(history);
+		int bestRate = 0;
+		for (Session s : history)
+		{
+			bestRate = Math.max(bestRate, s.xpPerHour());
+		}
+		stack.add(new SectionHeader("Past sessions", best == null ? null : "best " + Format.amount(best.xpPerHour()) + " xp/hr"));
+		Card card = new Card(new BorderLayout(0, 4));
+		StackPanel rows = new StackPanel(4, 0);
+		for (int i = 0; i < history.size() && i < PAST_SESSIONS; i++)
+		{
+			Session s = history.get(i);
+			rows.add(new SessionRow(s, bestRate, s == best));
+		}
+		card.add(rows, BorderLayout.CENTER);
+		if (history.size() > PAST_SESSIONS)
+		{
+			card.add(Ui.label((history.size() - PAST_SESSIONS) + " older sessions not shown", Theme.small(), Theme.TEXT_FAINT), BorderLayout.SOUTH);
+		}
+		stack.add(card);
+		Session latest = history.get(0);
+		if (best != null && latest != best && latest.getRuns().size() >= Session.BEST_MIN_RUNS)
+		{
+			int gap = best.xpPerHour() - latest.xpPerHour();
+			stack.add(Ui.wrapped((latest.isCurrent() ? "This session runs " : "Your last session ran ") + Format.amount(Math.abs(gap))
+				+ " xp/hr " + (gap > 0 ? "below" : "above") + " your best, on " + Format.shortDay(best.getStartedAt()) + ".",
+				Theme.small(), Theme.TEXT_FAINT, WIDTH - 16));
+		}
+	}
+
+	/** The artefacts waiting in the bank, with what they fetch at the Grand Exchange. */
+	private void addStash(StackPanel stack, View.Stash stash)
+	{
+		if (stash == null)
+		{
+			return;
+		}
+		long count = stash.count();
+		stack.add(new SectionHeader("Artefacts banked", count == 0 ? null : Format.coins(stash.value()) + " gp"));
+		String seen = "Bank as last seen " + Format.ago(view.now - stash.seenAt) + (stash.from == null ? "" : ", by " + stash.from) + ".";
+		if (count == 0)
+		{
+			stack.add(Ui.wrapped("None in the bank. " + seen, Theme.small(), Theme.TEXT_FAINT, WIDTH - 16));
+			return;
+		}
+		Card card = new Card(new BorderLayout(0, 4));
+		card.accent(Theme.GOLD_DIM);
+		StackPanel rows = new StackPanel(3, 0);
+		for (View.Stash.Line l : stash.lines)
+		{
+			rows.add(line(l.name + " x" + Format.amount(l.count), Format.coins(l.value), Theme.GOLD));
+		}
+		card.add(rows, BorderLayout.CENTER);
+		stack.add(card);
+		stack.add(Ui.wrapped(count + (count == 1 ? " artefact" : " artefacts") + " waiting to be sold at the Grand Exchange. " + seen,
+			Theme.small(), Theme.TEXT_FAINT, WIDTH - 16));
 	}
 
 	/** A number over a small word, centred, for the session card. */

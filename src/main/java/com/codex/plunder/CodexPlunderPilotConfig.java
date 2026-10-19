@@ -54,4 +54,15 @@ public interface CodexPlunderPilotConfig extends Config
 	{
 		return true;
 	}
+
+	@ConfigItem(
+		keyName = "roomOpens",
+		name = "Room openings in chat",
+		description = "When a Thieving level opens a deeper room, say so in the chat box with what a run pays there",
+		position = 4
+	)
+	default boolean roomOpens()
+	{
+		return true;
+	}
 }
