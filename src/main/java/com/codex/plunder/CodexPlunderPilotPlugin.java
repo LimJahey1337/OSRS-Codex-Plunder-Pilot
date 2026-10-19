@@ -1,6 +1,7 @@
 package com.codex.plunder;
 
 import com.codex.plunder.core.Check;
+import com.codex.plunder.core.Experience;
 import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Here;
 import com.codex.plunder.core.Logbook;
@@ -526,11 +527,11 @@ public class CodexPlunderPilotPlugin extends Plugin
 			return;
 		}
 		Integer before = lastXp.put(skill, event.getXp());
-		if (before == null || event.getXp() <= before)
+		int gained = Experience.gained(before, event.getXp());
+		if (gained <= 0)
 		{
 			return;
 		}
-		int gained = event.getXp() - before;
 		if (skill == Skill.THIEVING)
 		{
 			tracker.thieving(gained);
@@ -925,7 +926,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private void baseline(Skill skill)
 	{
 		int xp = client.getSkillExperience(skill);
-		if (xp > 0)
+		if (Experience.sent(xp, client.getSkillExperience(Skill.HITPOINTS)))
 		{
 			lastXp.putIfAbsent(skill, xp);
 		}
