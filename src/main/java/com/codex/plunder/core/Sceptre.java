@@ -26,6 +26,8 @@ public final class Sceptre
 	private boolean confirmed;
 	private boolean refuted;
 	private Boolean banked;
+	/** Whether the banked sceptre held charges; null in saves from before this was kept. */
+	private Boolean bankedCharged;
 
 	/** The charges a game message names, or null when it does not speak of the sceptre's charges. */
 	public static Integer parse(String message)
@@ -94,14 +96,30 @@ public final class Sceptre
 		return confirmed && !refuted;
 	}
 
-	/** Whether a sceptre was in the bank when it was last seen, or null if the bank has not been seen. */
-	public Boolean getBanked()
+	/**
+	 * The sceptre in the bank when it was last seen: none, an emptied one or a charged one; null
+	 * when the bank has not been seen. A banked sceptre from a save that did not say whether it was
+	 * charged counts as charged, as that is what is worth bringing.
+	 */
+	public Check.SceptreKit getBanked()
 	{
-		return banked;
+		if (banked == null)
+		{
+			return null;
+		}
+		if (!banked)
+		{
+			return Check.SceptreKit.NONE;
+		}
+		return bankedCharged == null || bankedCharged ? Check.SceptreKit.CHARGED : Check.SceptreKit.UNCHARGED;
 	}
 
-	public void setBanked(boolean value)
+	/** @return whether this changes what was known */
+	public boolean setBanked(Check.SceptreKit kit)
 	{
-		banked = value;
+		Check.SceptreKit before = getBanked();
+		banked = kit != Check.SceptreKit.NONE;
+		bankedCharged = kit == Check.SceptreKit.CHARGED;
+		return before != kit;
 	}
 }

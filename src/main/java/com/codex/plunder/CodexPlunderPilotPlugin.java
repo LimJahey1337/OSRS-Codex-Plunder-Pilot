@@ -171,16 +171,20 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private boolean lastSarcophagusOpen;
 
 	private Map<Integer, Integer> lastPack;
+	/**
+	 * Sceptres carried and worn together at the last tick, or -1 before the first look. A sceptre
+	 * found is one more of them; a sceptre moved between hand and pack, or emptied by its last
+	 * teleport, is the same one under another id and must not count.
+	 */
+	private int lastSceptres = -1;
 	private java.util.Set<GameObject> routeOf = java.util.Collections.emptySet();
 	private int routeCount = -1;
 	private List<GameObject> routeOrder = java.util.Collections.emptyList();
 	private int finishedTick = -1000;
 	/** A message named the sceptre's charges; next tick it is held up against the player variable. */
 	private boolean compareSceptre;
-	/** Whether Codex Gear Roadmap's saved bank holds a sceptre, read once per profile; null when it has none saved. */
-	private Boolean roadmapBanked;
-	/** The splits worked out from the logbook, kept until a run is added or the goal or level changes. */
-	private String splitsKey;
+	/** The sceptre in Codex Gear Roadmap's saved bank, read once per profile; null when it has none saved. */
+	private Check.SceptreKit roadmapBanked;
 
 	@Provides
 	CodexPlunderPilotConfig provideConfig(ConfigManager configManager)
@@ -206,6 +210,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			loadProfile();
 			lastXp.clear();
 			lastPack = null;
+			lastSceptres = -1;
 			publish(null);
 		});
 	}
@@ -239,6 +244,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 				save();
 				lastXp.clear();
 				lastPack = null;
+			lastSceptres = -1;
 				publish(null);
 				break;
 			default:
@@ -352,38 +358,68 @@ public class CodexPlunderPilotPlugin extends Plugin
 		for (int container : new int[]{InventoryID.INV, InventoryID.WORN})
 		{
 			ItemContainer items = client.getItemContainer(container);
-			if (items == null)
+			if (items != null)
 			{
-				continue;
-			}
-			for (Item item : items.getItems())
-			{
-				if (item.getId() == ItemID.PHARAOHS_SCEPTRE_CHARGED || item.getId() == ItemID.PHARAOHS_SCEPTRE_CHARGED_INITIAL)
+				for (Item item : items.getItems())
 				{
-					return Check.SceptreKit.CHARGED;
-				}
-				if (item.getId() == ItemID.PHARAOHS_SCEPTRE)
-				{
-					best = Check.SceptreKit.UNCHARGED;
+					best = better(best, sceptreKit(item.getId()));
 				}
 			}
 		}
 		return best;
 	}
 
-	/** Whether a sceptre waits in the bank: as this plugin last saw it, else as Codex Gear Roadmap saved it. */
-	private boolean sceptreBanked()
+	/** Pharaoh's sceptres in the pack and in hand, of any charge. */
+	private int sceptreCount()
 	{
-		Boolean seen = logbook.getSceptre().getBanked();
+		int n = 0;
+		for (int container : new int[]{InventoryID.INV, InventoryID.WORN})
+		{
+			ItemContainer items = client.getItemContainer(container);
+			if (items != null)
+			{
+				for (Item item : items.getItems())
+				{
+					n += sceptreKit(item.getId()) == Check.SceptreKit.NONE ? 0 : item.getQuantity();
+				}
+			}
+		}
+		return n;
+	}
+
+	/** What a single item is as a sceptre: not one, an emptied one, or a charged one. */
+	private static Check.SceptreKit sceptreKit(int itemId)
+	{
+		if (itemId == ItemID.PHARAOHS_SCEPTRE_CHARGED || itemId == ItemID.PHARAOHS_SCEPTRE_CHARGED_INITIAL)
+		{
+			return Check.SceptreKit.CHARGED;
+		}
+		return itemId == ItemID.PHARAOHS_SCEPTRE ? Check.SceptreKit.UNCHARGED : Check.SceptreKit.NONE;
+	}
+
+	/** A charged sceptre beats an emptied one, which beats none. */
+	private static Check.SceptreKit better(Check.SceptreKit a, Check.SceptreKit b)
+	{
+		return b.ordinal() > a.ordinal() ? b : a;
+	}
+
+	/** The sceptre waiting in the bank: as this plugin last saw it, else as Codex Gear Roadmap saved it. */
+	private Check.SceptreKit sceptreBanked()
+	{
+		Check.SceptreKit seen = logbook.getSceptre().getBanked();
 		if (seen != null)
 		{
 			return seen;
 		}
-		return roadmapBanked != null && roadmapBanked;
+		return roadmapBanked == null ? Check.SceptreKit.NONE : roadmapBanked;
 	}
 
-	/** Codex Gear Roadmap's last saved bank, if that plugin is installed and has seen it: does it hold a sceptre? */
-	private Boolean readRoadmapBank()
+	/**
+	 * The sceptre in Codex Gear Roadmap's last saved bank, if that plugin is installed and has seen
+	 * it. It saves only the gear it knows, which takes in the emptied and the charged sceptre but
+	 * not the freshly found one, so that one is missed until this plugin sees the bank itself.
+	 */
+	private Check.SceptreKit readRoadmapBank()
 	{
 		try
 		{
@@ -397,14 +433,15 @@ public class CodexPlunderPilotPlugin extends Plugin
 			{
 				return null;
 			}
+			Check.SceptreKit kit = Check.SceptreKit.NONE;
 			for (Integer id : bank.items)
 			{
-				if (id != null && SCEPTRES.contains(id))
+				if (id != null)
 				{
-					return true;
+					kit = better(kit, sceptreKit(id));
 				}
 			}
-			return false;
+			return kit;
 		}
 		catch (JsonParseException e)
 		{
@@ -456,15 +493,13 @@ public class CodexPlunderPilotPlugin extends Plugin
 	{
 		if (event.getContainerId() == InventoryID.BANK && logbook != null)
 		{
-			boolean banked = false;
+			Check.SceptreKit banked = Check.SceptreKit.NONE;
 			for (Item item : event.getItemContainer().getItems())
 			{
-				banked |= SCEPTRES.contains(item.getId());
+				banked = better(banked, sceptreKit(item.getId()));
 			}
-			Boolean before = logbook.getSceptre().getBanked();
-			if (before == null || before != banked)
+			if (logbook.getSceptre().setBanked(banked))
 			{
-				logbook.getSceptre().setBanked(banked);
 				unsaved = true;
 				dirty = true;
 			}
@@ -489,7 +524,6 @@ public class CodexPlunderPilotPlugin extends Plugin
 		}
 		long value = 0;
 		int count = 0;
-		boolean sceptre = false;
 		for (Map.Entry<Integer, Integer> e : pack.entrySet())
 		{
 			int gained = e.getValue() - before.getOrDefault(e.getKey(), 0);
@@ -502,24 +536,10 @@ public class CodexPlunderPilotPlugin extends Plugin
 				value += (long) gained * itemManager.getItemPrice(e.getKey());
 				count += gained;
 			}
-			else if (SCEPTRES.contains(e.getKey()))
-			{
-				sceptre = true;
-			}
 		}
 		if (tracker.isActive())
 		{
 			tracker.artefacts(count, value);
-			if (sceptre)
-			{
-				tracker.sceptre();
-			}
-		}
-		else if (sceptre && logbook != null && client.getTickCount() - finishedTick <= SCEPTRE_GRACE_TICKS)
-		{
-			logbook.sceptreAfter();
-			unsaved = true;
-			save();
 		}
 		dirty = true;
 	}
@@ -625,6 +645,23 @@ public class CodexPlunderPilotPlugin extends Plugin
 			compareSceptre = false;
 			logbook.getSceptre().compare(client.getVarpValue(SCEPTRE_CHARGES_VARP));
 		}
+		// Counted once a tick, when the pack and the worn items have both caught up.
+		int sceptres = sceptreCount();
+		if (lastSceptres >= 0 && sceptres > lastSceptres)
+		{
+			if (tracker.isActive())
+			{
+				tracker.sceptre();
+			}
+			else if (client.getTickCount() - finishedTick <= SCEPTRE_GRACE_TICKS)
+			{
+				logbook.sceptreAfter();
+				unsaved = true;
+				save();
+			}
+			dirty = true;
+		}
+		lastSceptres = sceptres;
 		lastXp.putIfAbsent(Skill.THIEVING, client.getSkillExperience(Skill.THIEVING));
 		lastXp.putIfAbsent(Skill.STRENGTH, client.getSkillExperience(Skill.STRENGTH));
 		if (lastPack == null)
@@ -914,12 +951,25 @@ public class CodexPlunderPilotPlugin extends Plugin
 		}
 	}
 
-	private SplitBook splitBook;
+	/**
+	 * Books by goal and deepest room, worked out again only when a run is added. More than one is
+	 * kept because a run whose goal was changed part way is measured under the goal it began with
+	 * while the Runs page shows the new one, and both are asked for every tick of the run.
+	 */
+	private final Map<String, SplitBook> splitBooks = new HashMap<>();
+	private long splitBooksRuns = -1;
 
 	private SplitBook splits(Goal goal, Room top)
 	{
-		String key = logbook.getTotalRuns() + "|" + logbook.getRuns().size() + "|" + goal + "|" + top;
-		if (splitBook == null || !key.equals(splitsKey))
+		long runsNow = logbook.getTotalRuns() * 1000L + logbook.getRuns().size();
+		if (runsNow != splitBooksRuns)
+		{
+			splitBooks.clear();
+			splitBooksRuns = runsNow;
+		}
+		String key = goal + "|" + top;
+		SplitBook splitBook = splitBooks.get(key);
+		if (splitBook == null)
 		{
 			List<Run> runs = logbook.getRuns();
 			int last = -1;
@@ -934,7 +984,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			Splits all = Splits.of(runs, goal, top);
 			Splits prior = last < 0 ? all : Splits.of(runs.subList(0, last), goal, top);
 			splitBook = new SplitBook(all, prior, last < 0 ? null : runs.get(last));
-			splitsKey = key;
+			splitBooks.put(key, splitBook);
 		}
 		return splitBook;
 	}
@@ -946,8 +996,8 @@ public class CodexPlunderPilotPlugin extends Plugin
 		profile = configManager.getRSProfileKey();
 		logbook = null;
 		roadmapBanked = null;
-		splitBook = null;
-		splitsKey = null;
+		splitBooks.clear();
+		splitBooksRuns = -1;
 		if (profile == null)
 		{
 			return;
@@ -1052,7 +1102,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 				Check.SceptreKit sceptre = carriedSceptre();
 				int charges = sceptre == Check.SceptreKit.CHARGED ? logbook.getSceptre().charges(client.getVarpValue(SCEPTRE_CHARGES_VARP)) : 0;
 				Check.Kit kit = new Check.Kit(level, client.getRealSkillLevel(Skill.PRAYER), client.getBoostedSkillLevel(Skill.HITPOINTS),
-					pack.free, pack.charm, pack.lockpick).sceptre(sceptre, charges, sceptreBanked());
+					pack.free, pack.charm, pack.lockpick).sceptre(sceptre, charges, logbook.getSceptre().isLive(), sceptreBanked());
 				view.ready(new View.Ready(Check.ready(kit, fresh, logbook.slotsNeeded(fresh, 10)), pack.artefacts, pack.artefactValue));
 			}
 		}
