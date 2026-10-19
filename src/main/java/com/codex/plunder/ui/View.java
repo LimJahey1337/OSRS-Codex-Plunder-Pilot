@@ -5,6 +5,8 @@ import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Run;
+import com.codex.plunder.core.Session;
+import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Step;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +33,11 @@ public final class View
 		final long totalArtefacts;
 		final int recentRate;
 		final int paceSamples;
+		/** The best splits as they stood before the newest run that reached the deepest room, or null. */
+		Splits splits;
+		/** The newest run that reached the deepest room for this goal, or null. */
+		Run splitRun;
+		Session session;
 
 		public Record(List<Run> runs, long[] opened, int sceptres, long totalRuns, long totalXp, long totalArtefacts, int recentRate, int paceSamples)
 		{
@@ -42,6 +49,23 @@ public final class View
 			this.totalArtefacts = totalArtefacts;
 			this.recentRate = recentRate;
 			this.paceSamples = paceSamples;
+		}
+
+		/**
+		 * @param prior the splits from the runs before {@code last}
+		 * @param last the newest run that reached the deepest room, or null
+		 */
+		public Record splits(Splits prior, Run last)
+		{
+			this.splits = prior;
+			this.splitRun = last;
+			return this;
+		}
+
+		public Record session(Session session)
+		{
+			this.session = session;
+			return this;
 		}
 
 		static Record empty()
@@ -58,9 +82,17 @@ public final class View
 		final long artefacts;
 		final int opened;
 		final double sceptreSoFar;
+		/** Ticks ahead (negative) or behind the best run on entering this room, or null with nothing to compare. */
+		final Integer split;
 
 		public Live(int ticksLeft, int thievingXp, long artefacts, int opened, double sceptreSoFar)
 		{
+			this(ticksLeft, thievingXp, artefacts, opened, sceptreSoFar, null);
+		}
+
+		public Live(int ticksLeft, int thievingXp, long artefacts, int opened, double sceptreSoFar, Integer split)
+		{
+			this.split = split;
 			this.ticksLeft = ticksLeft;
 			this.thievingXp = thievingXp;
 			this.artefacts = artefacts;

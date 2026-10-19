@@ -12,6 +12,9 @@ import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Route;
 import com.codex.plunder.core.Run;
 import com.codex.plunder.core.RunTracker;
+import com.codex.plunder.core.Sceptre;
+import com.codex.plunder.core.Session;
+import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Step;
 import com.codex.plunder.overlay.PilotPlaque;
 import com.codex.plunder.overlay.RoomHighlights;
@@ -47,6 +50,7 @@ import net.runelite.api.Skill;
 import net.runelite.api.TileObject;
 import net.runelite.api.WallObject;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
@@ -59,6 +63,7 @@ import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.ObjectID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatColorType;
@@ -105,6 +110,14 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private static final Set<Integer> CHASERS = ImmutableSet.of(NpcID.NTK_SCARAB_SWARM, NpcID.NTK_MUMMY_1, NpcID.NTK_MUMMY_2,
 		NpcID.NTK_MUMMY_3, NpcID.NTK_MUMMY_4, NpcID.NTK_MUMMY_5);
 	private static final Set<Integer> SCEPTRES = ImmutableSet.of(ItemID.PHARAOHS_SCEPTRE, ItemID.PHARAOHS_SCEPTRE_CHARGED, ItemID.PHARAOHS_SCEPTRE_CHARGED_INITIAL);
+	/**
+	 * Unverified guess: the player variable named for the sceptre holds its charges. See
+	 * {@link Sceptre}: it is only believed once a game message naming the charges agrees with it.
+	 */
+	private static final int SCEPTRE_CHARGES_VARP = VarPlayerID.PHARAOHS_SCEPTRE;
+	/** Codex Gear Roadmap keeps the bank it last saw here (item ids), read only when that plugin has saved one. */
+	private static final String GEAR_ROADMAP_GROUP = "codexgearroadmap";
+	private static final String GEAR_ROADMAP_BANK = "bank";
 
 	@Inject
 	private Client client;
@@ -162,6 +175,12 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private int routeCount = -1;
 	private List<GameObject> routeOrder = java.util.Collections.emptyList();
 	private int finishedTick = -1000;
+	/** A message named the sceptre's charges; next tick it is held up against the player variable. */
+	private boolean compareSceptre;
+	/** Whether Codex Gear Roadmap's saved bank holds a sceptre, read once per profile; null when it has none saved. */
+	private Boolean roadmapBanked;
+	/** The splits worked out from the logbook, kept until a run is added or the goal or level changes. */
+	private String splitsKey;
 
 	@Provides
 	CodexPlunderPilotConfig provideConfig(ConfigManager configManager)
@@ -305,6 +324,100 @@ public class CodexPlunderPilotPlugin extends Plugin
 		lastClosedUrns = -1;
 	}
 
+	// The sceptre's charges, from what the game says about them.
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		ChatMessageType type = event.getType();
+		if (logbook == null || type != ChatMessageType.GAMEMESSAGE && type != ChatMessageType.SPAM)
+		{
+			return;
+		}
+		Integer charges = Sceptre.parse(event.getMessage());
+		if (charges == null || carriedSceptre() == Check.SceptreKit.NONE && !event.getMessage().toLowerCase(java.util.Locale.ENGLISH).contains("pharaoh"))
+		{
+			return;
+		}
+		logbook.getSceptre().heard(charges);
+		compareSceptre = true;
+		unsaved = true;
+		dirty = true;
+	}
+
+	/** The Pharaoh's sceptre in the pack or in hand, charged or not. */
+	private Check.SceptreKit carriedSceptre()
+	{
+		Check.SceptreKit best = Check.SceptreKit.NONE;
+		for (int container : new int[]{InventoryID.INV, InventoryID.WORN})
+		{
+			ItemContainer items = client.getItemContainer(container);
+			if (items == null)
+			{
+				continue;
+			}
+			for (Item item : items.getItems())
+			{
+				if (item.getId() == ItemID.PHARAOHS_SCEPTRE_CHARGED || item.getId() == ItemID.PHARAOHS_SCEPTRE_CHARGED_INITIAL)
+				{
+					return Check.SceptreKit.CHARGED;
+				}
+				if (item.getId() == ItemID.PHARAOHS_SCEPTRE)
+				{
+					best = Check.SceptreKit.UNCHARGED;
+				}
+			}
+		}
+		return best;
+	}
+
+	/** Whether a sceptre waits in the bank: as this plugin last saw it, else as Codex Gear Roadmap saved it. */
+	private boolean sceptreBanked()
+	{
+		Boolean seen = logbook.getSceptre().getBanked();
+		if (seen != null)
+		{
+			return seen;
+		}
+		return roadmapBanked != null && roadmapBanked;
+	}
+
+	/** Codex Gear Roadmap's last saved bank, if that plugin is installed and has seen it: does it hold a sceptre? */
+	private Boolean readRoadmapBank()
+	{
+		try
+		{
+			String json = configManager.getRSProfileConfiguration(GEAR_ROADMAP_GROUP, GEAR_ROADMAP_BANK);
+			if (json == null || json.isEmpty())
+			{
+				return null;
+			}
+			SavedBank bank = gson.fromJson(json, SavedBank.class);
+			if (bank == null || bank.items == null)
+			{
+				return null;
+			}
+			for (Integer id : bank.items)
+			{
+				if (id != null && SCEPTRES.contains(id))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+		catch (JsonParseException e)
+		{
+			return null;
+		}
+	}
+
+	/** The shape Codex Gear Roadmap saves its bank in; only the item ids are read. */
+	private static final class SavedBank
+	{
+		List<Integer> items;
+	}
+
 	// Experience and the pack.
 
 	@Subscribe
@@ -341,6 +454,28 @@ public class CodexPlunderPilotPlugin extends Plugin
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged event)
 	{
+		if (event.getContainerId() == InventoryID.BANK && logbook != null)
+		{
+			boolean banked = false;
+			for (Item item : event.getItemContainer().getItems())
+			{
+				banked |= SCEPTRES.contains(item.getId());
+			}
+			Boolean before = logbook.getSceptre().getBanked();
+			if (before == null || before != banked)
+			{
+				logbook.getSceptre().setBanked(banked);
+				unsaved = true;
+				dirty = true;
+			}
+			return;
+		}
+		if (event.getContainerId() == InventoryID.WORN)
+		{
+			// The ready check reads a sceptre held in hand.
+			dirty = true;
+			return;
+		}
 		if (event.getContainerId() != InventoryID.INV)
 		{
 			return;
@@ -437,7 +572,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 	/** Whether a scarab swarm or a mummy has gone for the player. */
 	private boolean chased(Player player)
 	{
-		for (NPC npc : client.getNpcs())
+		for (NPC npc : client.getTopLevelWorldView().npcs())
 		{
 			if (CHASERS.contains(npc.getId()) && npc.getInteracting() == player)
 			{
@@ -485,6 +620,11 @@ public class CodexPlunderPilotPlugin extends Plugin
 			unsaved = true;
 			dirty = true;
 		}
+		if (compareSceptre)
+		{
+			compareSceptre = false;
+			logbook.getSceptre().compare(client.getVarpValue(SCEPTRE_CHARGES_VARP));
+		}
 		lastXp.putIfAbsent(Skill.THIEVING, client.getSkillExperience(Skill.THIEVING));
 		lastXp.putIfAbsent(Skill.STRENGTH, client.getSkillExperience(Skill.STRENGTH));
 		if (lastPack == null)
@@ -517,7 +657,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		tracker.room(room, now, pace);
 
 		LocalPoint me = player.getLocalLocation();
-		int plane = client.getPlane();
+		int plane = client.getTopLevelWorldView().getPlane();
 		Map<Integer, Boolean> slots = new HashMap<>();
 		List<GameObject> closedUrns = new ArrayList<>();
 		for (GameObject urn : urns)
@@ -718,6 +858,10 @@ public class CodexPlunderPilotPlugin extends Plugin
 		{
 			return;
 		}
+		Room top = Room.highest(logbook.getLevel());
+		Splits before = splits(run.getGoal(), top).all;
+		boolean best = before.hasBest() && before.isNewBest(run, run.getGoal());
+		int gained = best ? before.bestAt(top) - run.splitAt(top) : 0;
 		logbook.record(run, opened);
 		unsaved = true;
 		save();
@@ -737,6 +881,16 @@ public class CodexPlunderPilotPlugin extends Plugin
 			{
 				message.append(". Sceptre odds this run " + Format.oneIn(run.getSceptreChance()));
 			}
+			if (best)
+			{
+				message.append(". New best to room " + top.getNumber() + ": " + Format.clock(run.splitAt(top)) + ", "
+					+ Format.seconds(gained) + " faster");
+			}
+			Session session = Session.latest(logbook.getRuns(), System.currentTimeMillis());
+			if (session.getRuns().size() >= 2)
+			{
+				message.append(". Session: " + session.getRuns().size() + " runs, " + Format.amount(session.xpPerHour()) + " xp/hr");
+			}
 			message.append(".");
 			chatMessageManager.queue(QueuedMessage.builder()
 				.type(ChatMessageType.CONSOLE)
@@ -745,12 +899,55 @@ public class CodexPlunderPilotPlugin extends Plugin
 		}
 	}
 
+	/** The splits for a goal at the deepest room, over every run and over the runs before the newest comparable one. */
+	private static final class SplitBook
+	{
+		final Splits all;
+		final Splits prior;
+		final Run last;
+
+		SplitBook(Splits all, Splits prior, Run last)
+		{
+			this.all = all;
+			this.prior = prior;
+			this.last = last;
+		}
+	}
+
+	private SplitBook splitBook;
+
+	private SplitBook splits(Goal goal, Room top)
+	{
+		String key = logbook.getTotalRuns() + "|" + logbook.getRuns().size() + "|" + goal + "|" + top;
+		if (splitBook == null || !key.equals(splitsKey))
+		{
+			List<Run> runs = logbook.getRuns();
+			int last = -1;
+			for (int i = runs.size() - 1; i >= 0; i--)
+			{
+				if (Splits.comparable(runs.get(i), goal, top))
+				{
+					last = i;
+					break;
+				}
+			}
+			Splits all = Splits.of(runs, goal, top);
+			Splits prior = last < 0 ? all : Splits.of(runs.subList(0, last), goal, top);
+			splitBook = new SplitBook(all, prior, last < 0 ? null : runs.get(last));
+			splitsKey = key;
+		}
+		return splitBook;
+	}
+
 	// Saving.
 
 	private void loadProfile()
 	{
 		profile = configManager.getRSProfileKey();
 		logbook = null;
+		roadmapBanked = null;
+		splitBook = null;
+		splitsKey = null;
 		if (profile == null)
 		{
 			return;
@@ -772,6 +969,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		{
 			logbook = new Logbook();
 		}
+		roadmapBanked = readRoadmapBank();
 		unsaved = false;
 		dirty = true;
 	}
@@ -820,8 +1018,11 @@ public class CodexPlunderPilotPlugin extends Plugin
 		int level = logbook.getLevel();
 		Goal goal = logbook.getGoal();
 		Pace pace = logbook.getPace();
+		SplitBook book = splits(goal, Room.highest(Math.max(Room.ENTRY_LEVEL, level)));
 		View.Record record = new View.Record(new ArrayList<>(logbook.getRuns()), logbook.getOpened(), logbook.getSceptres(),
-			logbook.getTotalRuns(), logbook.getTotalXp(), logbook.getTotalArtefacts(), logbook.recentRate(10), pace.getUrnSamples());
+			logbook.getTotalRuns(), logbook.getTotalXp(), logbook.getTotalArtefacts(), logbook.recentRate(10), pace.getUrnSamples())
+			.splits(book.prior, book.last)
+			.session(Session.latest(logbook.getRuns(), now));
 		String name = loggedIn ? client.getLocalPlayer().getName() : null;
 		Plan fresh = Planner.fresh(level, goal, pace);
 		View view;
@@ -838,14 +1039,18 @@ public class CodexPlunderPilotPlugin extends Plugin
 			}
 			Plan plan = live == null ? fresh : live.plan;
 			Step step = live == null ? Step.next(fresh, false, false, 0) : live.step;
+			Room in = tracker.getRoom();
+			Integer split = in == null || in.ordinal() == 0 ? null : book.all.delta(in, tracker.enteredAt(in));
 			View.Live run = live == null ? null : new View.Live(live.ticksLeft, tracker.getThievingXp(), tracker.getArtefacts(),
-				tracker.getChests() + tracker.getSarcophagi(), Odds.atLeastOne(tracker.getOpened()));
+				tracker.getChests() + tracker.getSarcophagi(), Odds.atLeastOne(tracker.getOpened()), split);
 			view = new View(View.State.READY, name, level, logbook.getXp(), config.goalLevel(), goal, plan, fresh, ladder, step, run, record, now);
 			if (loggedIn)
 			{
 				Carried pack = carried();
+				Check.SceptreKit sceptre = carriedSceptre();
+				int charges = sceptre == Check.SceptreKit.CHARGED ? logbook.getSceptre().charges(client.getVarpValue(SCEPTRE_CHARGES_VARP)) : 0;
 				Check.Kit kit = new Check.Kit(level, client.getRealSkillLevel(Skill.PRAYER), client.getBoostedSkillLevel(Skill.HITPOINTS),
-					pack.free, pack.charm, pack.lockpick);
+					pack.free, pack.charm, pack.lockpick).sceptre(sceptre, charges, sceptreBanked());
 				view.ready(new View.Ready(Check.ready(kit, fresh, logbook.slotsNeeded(fresh, 10)), pack.artefacts, pack.artefactValue));
 			}
 		}

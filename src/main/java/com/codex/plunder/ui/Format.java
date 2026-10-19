@@ -69,6 +69,24 @@ public final class Format
 		return seconds / 60 + ":" + String.format(Locale.ENGLISH, "%02d", seconds % 60);
 	}
 
+	/** A gap in ticks as seconds, with no sign: "5s", "1:04". */
+	public static String seconds(int ticks)
+	{
+		int s = (int) Math.round(Math.abs(ticks) * 0.6);
+		return s < 60 ? s + "s" : s / 60 + ":" + String.format(Locale.ENGLISH, "%02d", s % 60);
+	}
+
+	/** A split against the best, signed: "-5s" ahead, "+1:04" behind, "even". */
+	public static String split(int ticks)
+	{
+		int s = (int) Math.round(Math.abs(ticks) * 0.6);
+		if (s == 0)
+		{
+			return "even";
+		}
+		return (ticks < 0 ? "-" : "+") + seconds(ticks);
+	}
+
 	/** A chance as odds: "1 in 69", "1 in 4,200", or "none". */
 	public static String oneIn(double chance)
 	{

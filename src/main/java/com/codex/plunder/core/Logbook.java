@@ -24,6 +24,7 @@ public final class Logbook
 	private long totalXp;
 	private long totalArtefacts;
 	private long totalTicks;
+	private Sceptre sceptre = new Sceptre();
 
 	public Pace getPace()
 	{
@@ -55,6 +56,16 @@ public final class Logbook
 	{
 		this.level = level;
 		this.xp = xp;
+	}
+
+	/** The sceptre's charges and where it was last seen. */
+	public Sceptre getSceptre()
+	{
+		if (sceptre == null)
+		{
+			sceptre = new Sceptre();
+		}
+		return sceptre;
 	}
 
 	public List<Run> getRuns()
@@ -202,6 +213,10 @@ public final class Logbook
 			runs = new ArrayList<>();
 		}
 		runs.removeIf(r -> r == null);
+		if (sceptre == null)
+		{
+			sceptre = new Sceptre();
+		}
 		if (opened == null || opened.length != Room.values().length)
 		{
 			long[] fixed = new long[Room.values().length];

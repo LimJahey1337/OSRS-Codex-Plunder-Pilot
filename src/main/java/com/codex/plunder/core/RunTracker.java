@@ -25,6 +25,7 @@ public final class RunTracker
 	private int artefactCount;
 	private boolean sceptre;
 	private final long[] opened = new long[Room.values().length];
+	private final int[] entered = new int[Room.values().length];
 
 	public boolean isActive()
 	{
@@ -52,6 +53,7 @@ public final class RunTracker
 		artefactCount = 0;
 		sceptre = false;
 		java.util.Arrays.fill(opened, 0);
+		java.util.Arrays.fill(entered, -1);
 	}
 
 	/** The player is in this room now. Moving one room deeper times the room just left. */
@@ -67,6 +69,11 @@ public final class RunTracker
 			// came before the searches, so it is added back from the pace when there were any.
 			int took = tick - (actedHere ? lastActionTick : roomTick);
 			pace.passTook(actedHere ? took + (int) Math.round(pace.trap()) : took);
+		}
+		if (entered[now.ordinal()] < 0)
+		{
+			// Seen late (the plugin started mid-run) only ever makes a split slower, never a false best.
+			entered[now.ordinal()] = Math.max(0, tick - startTick);
 		}
 		room = now;
 		deepest = Math.max(deepest, now.getNumber());
@@ -163,6 +170,12 @@ public final class RunTracker
 		return room;
 	}
 
+	/** Ticks from the start of the run to entering the room, or -1 when it has not been entered. */
+	public int enteredAt(Room r)
+	{
+		return active && r != null ? entered[r.ordinal()] : -1;
+	}
+
 	public int getThievingXp()
 	{
 		return thievingXp;
@@ -216,6 +229,6 @@ public final class RunTracker
 			return null;
 		}
 		return new Run(startedAt, Math.max(0, tick - startTick), deepest, thievingXp, strengthXp, urns, chests,
-			sarcophagi, artefacts, artefactCount, Odds.atLeastOne(opened), sceptre, goal);
+			sarcophagi, artefacts, artefactCount, Odds.atLeastOne(opened), sceptre, goal, entered);
 	}
 }

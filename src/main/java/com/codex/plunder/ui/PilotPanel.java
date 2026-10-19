@@ -9,6 +9,8 @@ import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Planner;
 import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Run;
+import com.codex.plunder.core.Session;
+import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Step;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -202,14 +204,21 @@ public class PilotPanel extends PluginPanel
 		}
 
 		Plan plan = view.plan;
-		JPanel tiles = new JPanel(new GridLayout(1, 2, 6, 0));
+		boolean split = view.inRun() && view.live.split != null;
+		JPanel tiles = new JPanel(new GridLayout(1, split ? 3 : 2, 6, 0));
 		tiles.setOpaque(false);
 		if (view.inRun())
 		{
 			tiles.add(new StatTile("+" + Format.amount(view.live.thievingXp), "This run",
-				"+" + Format.amount(plan.getThievingXp()) + " to come", Theme.GOLD));
+				"+" + Format.amount(plan.getThievingXp()) + (split ? "" : " to come"), Theme.GOLD));
 			double chance = 1 - (1 - view.live.sceptreSoFar) * (1 - plan.getSceptreChance());
-			tiles.add(new StatTile(Format.oneIn(chance), "Sceptre", view.live.opened + " opened so far", Theme.TEAL));
+			tiles.add(new StatTile(Format.oneIn(chance), "Sceptre", view.live.opened + (split ? " opened" : " opened so far"), Theme.TEAL));
+			if (split)
+			{
+				int d = view.live.split;
+				Color c = Math.round(d * 0.6) == 0 ? Theme.TEXT_MUTED : d < 0 ? Theme.GREEN : Theme.EMBER;
+				tiles.add(new StatTile(Format.split(d), "Split", "vs best", c));
+			}
 		}
 		else
 		{
@@ -351,6 +360,8 @@ public class PilotPanel extends PluginPanel
 		tiles.add(new StatTile(Format.amount(r.totalRuns), "Runs", Format.coins(r.totalArtefacts) + " gp loot", Theme.TEAL));
 		stack.add(tiles);
 
+		addSession(stack, r.session);
+
 		int target = Math.max(view.level + 1, Math.min(99, view.targetLevel));
 		if (view.level < 99)
 		{
@@ -389,6 +400,8 @@ public class PilotPanel extends PluginPanel
 		ladder.add(rows, BorderLayout.CENTER);
 		stack.add(ladder);
 
+		addSplits(stack, r);
+
 		if (!r.runs.isEmpty())
 		{
 			stack.add(new SectionHeader("Recent runs", Format.amount(r.totalXp) + " xp in all"));
@@ -403,6 +416,110 @@ public class PilotPanel extends PluginPanel
 			stack.add(recent);
 		}
 		replace(runs, stack);
+	}
+
+	/** The sitting in hand, or the last one: what it earned, its rate and the sceptre chance it carried. */
+	private void addSession(StackPanel stack, Session s)
+	{
+		if (s == null || s.isEmpty())
+		{
+			return;
+		}
+		int count = s.getRuns().size();
+		String title = s.isCurrent() ? "This session" : "Last session";
+		String when = s.isCurrent() ? Format.duration(s.spanMs()) : Format.shortDay(s.getStartedAt());
+		stack.add(new SectionHeader(title, when));
+		Card card = new Card(new BorderLayout(0, 6));
+		card.accent(s.isCurrent() ? Theme.GOLD : Theme.GOLD_DIM);
+		JPanel figures = new JPanel(new GridLayout(1, 3, 4, 0));
+		figures.setOpaque(false);
+		figures.add(figure(String.valueOf(count), count == 1 ? "run" : "runs", Theme.GOLD));
+		figures.add(figure(Format.amount(s.xpPerHour()), "xp/hr", Theme.GOLD_BRIGHT));
+		figures.add(figure(Format.coins(s.artefactsPerHour()), "gp/hr", Theme.GOLD));
+		card.add(figures, BorderLayout.NORTH);
+		card.add(new SessionBars(s.getRuns()), BorderLayout.CENTER);
+		StackPanel lines = new StackPanel(3, 0);
+		lines.add(line("Thieving", "+" + Format.amount(s.getXp()) + " xp", Theme.GOLD));
+		if (s.getStrengthXp() > 0)
+		{
+			lines.add(line("Strength", "+" + Format.amount(s.getStrengthXp()) + " xp", Theme.GOLD_DIM));
+		}
+		if (s.getSceptres() > 0)
+		{
+			lines.add(line("Sceptre", s.getSceptres() == 1 ? "found!" : s.getSceptres() + " found!", Theme.TEAL));
+		}
+		else if (s.getSceptreChance() > 0)
+		{
+			lines.add(line("Sceptre chance", Format.oneIn(s.getSceptreChance()) + " (" + Format.percent(s.getSceptreChance()) + ")", Theme.TEAL));
+		}
+		Run best = s.best();
+		if (best != null && count > 1)
+		{
+			lines.add(line("Best run", "+" + Format.amount(best.getThievingXp()) + ", room " + best.getDeepest(), Theme.GOLD));
+		}
+		card.add(lines, BorderLayout.SOUTH);
+		stack.add(card);
+	}
+
+	/** A number over a small word, centred, for the session card. */
+	private static JComponent figure(String value, String label, Color color)
+	{
+		JPanel p = new JPanel(new BorderLayout(0, 0));
+		p.setOpaque(false);
+		JLabel v = Ui.label(value, Theme.title(), color);
+		v.setHorizontalAlignment(JLabel.CENTER);
+		JLabel l = Ui.label(label, Theme.small(), Theme.TEXT_FAINT);
+		l.setHorizontalAlignment(JLabel.CENTER);
+		p.add(v, BorderLayout.CENTER);
+		p.add(l, BorderLayout.SOUTH);
+		return p;
+	}
+
+	/** The last run to the deepest room, room by room, against the best before it. */
+	private void addSplits(StackPanel stack, View.Record r)
+	{
+		Splits best = r.splits;
+		Run run = r.splitRun;
+		if (best == null || best.getTop() == null)
+		{
+			return;
+		}
+		Room top = best.getTop();
+		if (top.ordinal() == 0)
+		{
+			return;
+		}
+		if (run == null)
+		{
+			stack.add(new SectionHeader("Splits", "to room " + top.getNumber()));
+			stack.add(Ui.wrapped("Reach room " + top.getNumber() + " on a " + view.goal.getLabel().toLowerCase(Locale.ENGLISH)
+				+ " run and the Pilot keeps your splits: when you entered each room, against your best run.", Theme.small(), Theme.TEXT_FAINT, WIDTH - 16));
+			return;
+		}
+		boolean compared = best.hasBest();
+		Integer gap = compared ? best.delta(top, run.splitAt(top)) : null;
+		String trailing = gap == null ? "first run" : gap < 0 ? "new best" : "best " + Format.clock(best.bestAt(top));
+		stack.add(new SectionHeader("Splits", trailing));
+		Card card = new Card(new BorderLayout(0, 6));
+		card.accent(gap != null && gap < 0 ? Theme.GREEN : Theme.GOLD);
+		card.add(new SplitTable(run, best), BorderLayout.CENTER);
+		String foot;
+		int sob = best.sumOfBest();
+		if (!compared)
+		{
+			foot = "Your first timed run to room " + top.getNumber() + ". The next one is measured against it.";
+		}
+		else if (sob >= 0 && sob < best.bestAt(top))
+		{
+			foot = "Each bar is how long the room took; its tick is the room's quickest ever. Your quickest rooms together reach room "
+				+ top.getNumber() + " at " + Format.clock(sob) + ", " + Format.seconds(best.bestAt(top) - sob) + " under your best.";
+		}
+		else
+		{
+			foot = "Each bar is how long the room took; its tick is the room's quickest ever.";
+		}
+		card.add(Ui.wrapped(foot, Theme.small(), Theme.TEXT_FAINT, WIDTH - 30), BorderLayout.SOUTH);
+		stack.add(card);
 	}
 
 	private static JComponent line(String left, String right, Color color)
