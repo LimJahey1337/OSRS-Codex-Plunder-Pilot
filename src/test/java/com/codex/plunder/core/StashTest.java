@@ -14,7 +14,7 @@ import org.junit.Test;
 public class StashTest
 {
 	private static final List<Integer> ARTEFACTS = Arrays.asList(ItemID.NTK_IVORY_COMB, ItemID.NTK_STATUETTE_GOLD);
-	private static final String STEWARD = "{\"version\":1,\"savedAt\":5000,\"items\":{\"995\":100,\""
+	private static final String STEWARD = "{\"version\":1,\"savedAt\":500000,\"items\":{\"995\":100,\""
 		+ ItemID.NTK_STATUETTE_GOLD + "\":7},\"truncated\":false}";
 
 	@Test
@@ -23,13 +23,13 @@ public class StashTest
 		SharedBank steward = SharedBank.read(new Gson(), STEWARD, null);
 		Map<Integer, Long> own = new HashMap<>();
 		own.put(ItemID.NTK_IVORY_COMB, 3L);
-		Stash older = Stash.pick(own, 4000, steward, ARTEFACTS);
+		Stash older = Stash.pick(own, 400_000, steward, ARTEFACTS);
 		assertEquals(SharedBank.Source.BANK_STEWARD, older.getFrom());
 		assertEquals(Collections.singletonMap(ItemID.NTK_STATUETTE_GOLD, 7L), older.getItems());
-		Stash newer = Stash.pick(own, 6000, steward, ARTEFACTS);
+		Stash newer = Stash.pick(own, 600_000, steward, ARTEFACTS);
 		assertNull(newer.getFrom());
 		assertEquals(3, newer.count());
-		assertEquals(6000, newer.getSeenAt());
+		assertEquals(600_000, newer.getSeenAt());
 	}
 
 	@Test
@@ -55,5 +55,15 @@ public class StashTest
 		assertEquals(Long.valueOf(2), back.getBanked().get(ItemID.NTK_IVORY_COMB));
 		assertEquals(200, back.getBankedAt());
 		assertEquals(0, new Gson().fromJson("{}", Logbook.class).repair().getBanked().size());
+	}
+
+	@Test
+	public void theSameBankVisitIsCreditedToThisPlugin()
+	{
+		// Both plugins saw the bank on the same visit, Bank Steward a few ticks later.
+		SharedBank steward = SharedBank.read(new Gson(), STEWARD, null);
+		Stash same = Stash.pick(Collections.singletonMap(ItemID.NTK_STATUETTE_GOLD, 7L), 500_000 - 1200, steward, ARTEFACTS);
+		assertNull(same.getFrom());
+		assertEquals(500_000 - 1200, same.getSeenAt());
 	}
 }

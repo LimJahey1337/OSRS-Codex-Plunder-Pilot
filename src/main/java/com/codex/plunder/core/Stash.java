@@ -12,6 +12,12 @@ import java.util.TreeMap;
  */
 public final class Stash
 {
+	/**
+	 * Bank Steward's bank must be this much newer than this plugin's look to be taken instead: on
+	 * the same bank visit both see it, the Steward a moment later, and the look was this plugin's.
+	 */
+	static final long SAME_VISIT_MS = 60_000L;
+
 	private final Map<Integer, Long> items;
 	private final long seenAt;
 	private final SharedBank.Source from;
@@ -28,11 +34,12 @@ public final class Stash
 	 * @param ownAt when that was, 0 for never
 	 * @param shared the bank another Codex plugin saved, or null
 	 * @param artefacts the item ids that count
-	 * @return the newer of the two, or null when neither has seen the bank
+	 * @return the newer of the two (the Steward's only when over a minute newer), or null when neither has seen the bank
 	 */
 	public static Stash pick(Map<Integer, Long> own, long ownAt, SharedBank shared, Collection<Integer> artefacts)
 	{
-		if (shared != null && shared.isComplete() && shared.getSavedAt() > ownAt)
+		if (shared != null && shared.isComplete() && shared.getSavedAt() > 0
+			&& (ownAt <= 0 || shared.getSavedAt() > ownAt + SAME_VISIT_MS))
 		{
 			Map<Integer, Long> items = new TreeMap<>();
 			for (int id : artefacts)
