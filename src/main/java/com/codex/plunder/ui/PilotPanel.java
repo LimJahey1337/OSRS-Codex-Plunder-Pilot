@@ -642,7 +642,7 @@ public class PilotPanel extends PluginPanel
 		card.add(rows, BorderLayout.CENTER);
 		if (history.size() > PAST_SESSIONS)
 		{
-			card.add(Ui.label((history.size() - PAST_SESSIONS) + " older sessions not shown", Theme.small(), Theme.TEXT_FAINT), BorderLayout.SOUTH);
+			card.add(Ui.label(olderNote(history.size() - PAST_SESSIONS), Theme.small(), Theme.TEXT_FAINT), BorderLayout.SOUTH);
 		}
 		stack.add(card);
 		Session latest = history.get(0);
@@ -653,6 +653,12 @@ public class PilotPanel extends PluginPanel
 				+ " xp/hr " + (gap > 0 ? "below" : "above") + " your best, on " + Format.shortDay(best.getStartedAt()) + ".",
 				Theme.small(), Theme.TEXT_FAINT, WIDTH - 16));
 		}
+	}
+
+	/** "1 older session not shown", "3 older sessions not shown". */
+	static String olderNote(int older)
+	{
+		return older + (older == 1 ? " older session" : " older sessions") + " not shown";
 	}
 
 	/** The artefacts waiting in the bank, with what they fetch at the Grand Exchange. */
