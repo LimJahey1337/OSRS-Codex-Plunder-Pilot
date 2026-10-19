@@ -14,6 +14,7 @@ import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Route;
 import com.codex.plunder.core.Run;
 import com.codex.plunder.core.RunTracker;
+import com.codex.plunder.core.Salvage;
 import com.codex.plunder.core.Sceptre;
 import com.codex.plunder.core.SceptreWatch;
 import com.codex.plunder.core.Session;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.ChatMessageType;
@@ -102,6 +104,10 @@ public class CodexPlunderPilotPlugin extends Plugin
 {
 	private static final Logger log = LoggerFactory.getLogger(CodexPlunderPilotPlugin.class);
 	private static final String LOGBOOK_KEY = "logbook";
+	/** Where a save this version could not keep whole is put aside, once, before it is written over. */
+	private static final String BACKUP_KEY = "logbookBackup";
+	/** Past this a save is far bigger than any the pilot writes, and is not copied aside. */
+	private static final int BACKUP_MAX = 1_000_000;
 	private static final int PYRAMID_REGION = 7749;
 	/** About eighteen tiles: the room the player is in, not the ones beside it. */
 	private static final int NEAR = 2350;
@@ -129,6 +135,9 @@ public class CodexPlunderPilotPlugin extends Plugin
 
 	@Inject
 	private ClientThread clientThread;
+
+	@Inject
+	private ScheduledExecutorService executor;
 
 	@Inject
 	private ClientToolbar clientToolbar;
@@ -167,6 +176,8 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private String profile;
 	private Logbook logbook;
 	private boolean unsaved;
+	/** Counts logbook loads, so a slow read that an account switch or shutdown overtook is dropped. */
+	private int loadGeneration;
 	private boolean dirty;
 
 	/** The room as it stood last tick, to see what changed. */
@@ -233,6 +244,8 @@ public class CodexPlunderPilotPlugin extends Plugin
 		clientThread.invokeLater(() ->
 		{
 			save();
+			// A logbook still being read off the client thread must not come back after this.
+			loadGeneration++;
 			logbook = null;
 			profile = null;
 			forgetScene();
@@ -1200,15 +1213,70 @@ public class CodexPlunderPilotPlugin extends Plugin
 		sharedBank = null;
 		splitBooks.clear();
 		splitBooksRuns = -1;
+		int generation = ++loadGeneration;
 		if (profile == null)
 		{
 			return;
 		}
-		logbook = Logbook.read(gson, configManager.getRSProfileConfiguration(CodexPlunderPilotConfig.GROUP, LOGBOOK_KEY));
+		String saved = configManager.getRSProfileConfiguration(CodexPlunderPilotConfig.GROUP, LOGBOOK_KEY);
+		if (saved == null || saved.length() < Logbook.LARGE)
+		{
+			Logbook read = Logbook.read(gson, saved);
+			loaded(profile, saved, read, Salvage.wouldLose(gson, saved, read));
+		}
+		else
+		{
+			// A long logbook (many runs, or a hand-edited save) takes milliseconds to tens of them to
+			// read, so it is read off the client thread and taken up on it. Until then the pilot shows
+			// and records nothing, as when logged out.
+			String forProfile = profile;
+			executor.execute(() ->
+			{
+				Logbook got;
+				boolean loses;
+				try
+				{
+					got = Logbook.read(gson, saved);
+					loses = Salvage.wouldLose(gson, saved, got);
+				}
+				catch (RuntimeException e)
+				{
+					log.warn("Could not read the saved logbook", e);
+					got = new Logbook();
+					loses = true;
+				}
+				Logbook read = got;
+				boolean lose = loses;
+				clientThread.invokeLater(() ->
+				{
+					// Not if the account changed, or the plugin was turned off, while it was read.
+					if (generation == loadGeneration && forProfile.equals(profile))
+					{
+						loaded(forProfile, saved, read, lose);
+						dirty = true;
+					}
+				});
+			});
+		}
 		sharedBanked = readSharedBank();
 		readNavigator();
 		unsaved = false;
 		dirty = true;
+	}
+
+	/**
+	 * Takes up the logbook read from {@code saved}, first putting {@code saved} aside when saving
+	 * over it would lose something ({@code lose}): a newer version's fields, or damage mended.
+	 */
+	private void loaded(String forProfile, String saved, Logbook read, boolean lose)
+	{
+		if (lose && saved.length() <= BACKUP_MAX)
+		{
+			log.warn("The saved logbook holds what this version cannot keep; a copy is kept under {}", BACKUP_KEY);
+			configManager.setConfiguration(CodexPlunderPilotConfig.GROUP, forProfile, BACKUP_KEY, saved);
+		}
+		logbook = read;
+		unsaved = false;
 	}
 
 	/** Reads Codex Navigator's goal board for this profile; never writes it. */

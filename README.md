@@ -60,7 +60,7 @@ Getting through each room costs a fixed time. What is left of the five minutes g
 - **Experience** opens the chests from room 4 on first, then searches urns from the best-paying room down while the clock allows.
 - **Sceptre** opens every chest and the sarcophagi from room 4 on, where their odds are best, before any urn.
 
-The plan starts from typical times and learns your own from your runs. Everything is saved per account in your RuneLite profile. A save damaged on disk keeps all it can: one unreadable run or setting is lost alone.
+The plan starts from typical times and learns your own from your runs. Everything is saved per account in your RuneLite profile. A save damaged on disk keeps all it can: one unreadable run or setting is lost alone. Before a damaged save, or one a newer version wrote, is first saved over, a copy of it as found is kept aside in your profile.
 
 ## Rules posture
 

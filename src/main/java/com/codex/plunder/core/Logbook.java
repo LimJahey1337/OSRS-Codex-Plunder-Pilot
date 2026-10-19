@@ -15,6 +15,11 @@ public final class Logbook
 {
 	/** Runs kept in full; older runs still count in the totals. */
 	static final int KEEP = 300;
+	/**
+	 * A save at least this long is read off the client thread. 300 runs come to about 80,000
+	 * characters and take about 5 ms to read and check; a hand-edited save can be far longer.
+	 */
+	public static final int LARGE = 40_000;
 
 	private Pace pace = new Pace();
 	private Goal goal = Goal.EXPERIENCE;
