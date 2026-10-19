@@ -820,8 +820,11 @@ public class CodexPlunderPilotPlugin extends Plugin
 		if (config.plaque())
 		{
 			Color color = step.getKind() == Step.Kind.DANGER ? Theme.BLOOD : Theme.clock(ticksLeft);
+			// For the first moments in a room its split against the best run shows on the plaque.
+			Integer split = liveSplit(room);
+			boolean flash = split != null && tracker.elapsed(now) - tracker.enteredAt(room) < SPLIT_FLASH_TICKS;
 			plaque.show("R" + room.getNumber() + "  " + Format.clock(ticksLeft), step.getTitle(), step.getDetail(), color,
-				ticksLeft / (double) Planner.RUN_TICKS);
+				ticksLeft / (double) Planner.RUN_TICKS, flash ? Format.split(split) : null, flash ? splitColor(split) : null);
 		}
 		else
 		{
@@ -934,6 +937,29 @@ public class CodexPlunderPilotPlugin extends Plugin
 				.runeLiteFormattedMessage(message.build())
 				.build());
 		}
+	}
+
+	/** Ticks the room's split stays on the plaque after entering it: about ten seconds. */
+	private static final int SPLIT_FLASH_TICKS = 17;
+
+	/**
+	 * Ticks ahead (negative) or behind the best run on entering the room the run is in, or null with
+	 * nothing to compare. Measured against the best for the goal the run began with, which is the goal
+	 * it will be saved under.
+	 */
+	private Integer liveSplit(Room in)
+	{
+		if (in == null || in.ordinal() == 0 || tracker.getGoal() == null || logbook == null)
+		{
+			return null;
+		}
+		return splits(tracker.getGoal(), Room.highest(logbook.getLevel())).all.delta(in, tracker.enteredAt(in));
+	}
+
+	/** Green ahead of the best, ember behind, muted when level with it. */
+	private static Color splitColor(int ticks)
+	{
+		return Math.round(Math.abs(ticks) * 0.6) == 0 ? Theme.TEXT_MUTED : ticks < 0 ? Theme.GREEN : Theme.EMBER;
 	}
 
 	/** The splits for a goal at the deepest room, over every run and over the runs before the newest comparable one. */
@@ -1089,10 +1115,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			}
 			Plan plan = live == null ? fresh : live.plan;
 			Step step = live == null ? Step.next(fresh, false, false, 0) : live.step;
-			Room in = tracker.getRoom();
-			// Measured against the best for the goal the run began with, which is the goal it will be saved under.
-			Integer split = live == null || in == null || in.ordinal() == 0 || tracker.getGoal() == null ? null
-				: splits(tracker.getGoal(), Room.highest(level)).all.delta(in, tracker.enteredAt(in));
+			Integer split = live == null ? null : liveSplit(tracker.getRoom());
 			View.Live run = live == null ? null : new View.Live(live.ticksLeft, tracker.getThievingXp(), tracker.getArtefacts(),
 				tracker.getChests() + tracker.getSarcophagi(), Odds.atLeastOne(tracker.getOpened()), split);
 			view = new View(View.State.READY, name, level, logbook.getXp(), config.goalLevel(), goal, plan, fresh, ladder, step, run, record, now);

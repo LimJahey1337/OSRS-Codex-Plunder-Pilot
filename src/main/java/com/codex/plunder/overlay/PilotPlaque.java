@@ -29,9 +29,13 @@ public class PilotPlaque extends Overlay
 		final String detail;
 		final Color color;
 		final double progress;
+		final String split;
+		final Color splitColor;
 
-		Shown(String figure, String step, String detail, Color color, double progress)
+		Shown(String figure, String step, String detail, Color color, double progress, String split, Color splitColor)
 		{
+			this.split = split;
+			this.splitColor = splitColor;
 			this.figure = figure;
 			this.step = step;
 			this.detail = detail;
@@ -51,7 +55,16 @@ public class PilotPlaque extends Overlay
 	 */
 	public void show(String figure, String step, String detail, Color color, double progress)
 	{
-		shown = figure == null ? null : new Shown(figure, step, detail, color, progress);
+		show(figure, step, detail, color, progress, null, null);
+	}
+
+	/**
+	 * @param split the room's split against the best run, such as "-4s", drawn after the figure; or null
+	 * @param splitColor green ahead, ember behind
+	 */
+	public void show(String figure, String step, String detail, Color color, double progress, String split, Color splitColor)
+	{
+		shown = figure == null ? null : new Shown(figure, step, detail, color, progress, split, splitColor);
 	}
 
 	@Override
@@ -69,7 +82,9 @@ public class PilotPlaque extends Overlay
 		FontMetrics small = g.getFontMetrics();
 		int icon = 16;
 		int textX = PAD + icon + 6;
-		int line1 = bold.stringWidth(s.figure) + 10 + bold.stringWidth(s.step);
+		// A split sits after the figure as a small framed chip, the way a speedrun timer flashes one.
+		int chip = s.split == null ? 0 : small.stringWidth(s.split) + 8;
+		int line1 = bold.stringWidth(s.figure) + 10 + (chip > 0 ? chip + 8 : 0) + bold.stringWidth(s.step);
 		int line2 = s.detail == null ? 0 : Math.min(small.stringWidth(s.detail), 260);
 		int width = textX + Math.max(line1, line2) + PAD;
 		int height = PAD + bold.getHeight() + (s.detail == null ? 0 : small.getHeight() + 1) + PAD;
@@ -84,7 +99,22 @@ public class PilotPlaque extends Overlay
 		int base = PAD + bold.getAscent();
 		g.setFont(Theme.title());
 		Ui.shadowed(g, s.figure, textX, base, s.color);
-		Ui.shadowed(g, s.step, textX + bold.stringWidth(s.figure) + 10, base, Theme.TEXT);
+		int stepX = textX + bold.stringWidth(s.figure) + 10;
+		if (chip > 0)
+		{
+			int ch = small.getHeight() + 1;
+			int cy = base - bold.getAscent() / 2 - ch / 2 - 1;
+			RoundRectangle2D box = new RoundRectangle2D.Float(stepX, cy, chip, ch, 6, 6);
+			g.setColor(Theme.alpha(s.splitColor, 46));
+			g.fill(box);
+			g.setColor(Theme.alpha(s.splitColor, 150));
+			g.draw(box);
+			g.setFont(Theme.small());
+			Ui.shadowed(g, s.split, stepX + 4, cy + (ch + small.getAscent()) / 2 - 1, s.splitColor);
+			g.setFont(Theme.title());
+			stepX += chip + 8;
+		}
+		Ui.shadowed(g, s.step, stepX, base, Theme.TEXT);
 		if (s.detail != null)
 		{
 			g.setFont(Theme.small());
