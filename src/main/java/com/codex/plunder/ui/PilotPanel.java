@@ -79,7 +79,7 @@ public class PilotPanel extends PluginPanel
 
 		tabs.onChange(this::showTab);
 		goal.onChange(i -> actions.goal(Goal.values()[i]));
-		rebuild();
+		refresh(true);
 	}
 
 	private static JScrollPane scroller()
@@ -103,11 +103,12 @@ public class PilotPanel extends PluginPanel
 		rebuild();
 	}
 
-	/** Opens one tab, for previews and tests. */
+	/** Opens one tab, building it if it is out of date. */
 	public void showTab(int index)
 	{
 		tabs.setSelected(index, false);
 		cards.show(content, TABS[index]);
+		refresh(true);
 	}
 
 	private void updateCrest()
@@ -115,7 +116,8 @@ public class PilotPanel extends PluginPanel
 		switch (view.state)
 		{
 			case LOGGED_OUT:
-				crest.update("PYRAMID PLUNDER", "-", null, "Log in to plan your runs", Theme.TEXT_MUTED, Theme.GOLD_DIM, -1);
+				crest.update("PYRAMID PLUNDER", null, "Runs planned to your level", "Log in to plan your runs",
+					Theme.mix(Theme.TEXT_MUTED, Theme.GOLD, 0.45), Theme.GOLD_DIM, -1);
 				return;
 			case TOO_LOW:
 				crest.update("THIEVING " + view.level, "21", "to enter", "The pyramid opens at Thieving 21", Theme.TEXT_MUTED, Theme.GOLD_DIM, -1);
@@ -137,40 +139,74 @@ public class PilotPanel extends PluginPanel
 		Plan fresh = view.fresh;
 		crest.update("THIEVING " + view.level + "  -  " + view.goal.getLabel().toUpperCase(Locale.ENGLISH),
 			String.valueOf(fresh.getTop().getNumber()), fresh.getTop().getNumber() == 1 ? "room" : "rooms",
-			Format.amount(fresh.xpPerHour(Planner.RESTART_TICKS)) + " xp/hr  -  sceptre " + Format.oneIn(fresh.getSceptreChance()),
+			Format.amount(fresh.xpPerHour(Planner.RESTART_TICKS)) + " xp/hr, sceptre " + Format.oneInShort(fresh.getSceptreChance()),
 			Theme.mix(Theme.TEXT_MUTED, Theme.GOLD, 0.35), Theme.GOLD, -1);
 	}
 
 	private String oddsShown;
 	private String runsShown;
+	/** The Pilot page shows an older view than the one in hand. */
+	private boolean pilotStale = true;
 
 	/**
 	 * The Pilot page changes every tick of a run; the other two only when a run is added, the level
-	 * or goal changes or a minute passes, so they are rebuilt only then rather than every tick.
+	 * or goal changes or a minute passes. While the panel is closed nothing is rebuilt, and while it
+	 * is open only the page in view is, and that only when what it shows has changed.
 	 */
 	private void rebuild()
 	{
-		rebuildPilot();
-		View.Record r = view.record;
-		long opened = 0;
-		for (long o : r.opened)
+		pilotStale = true;
+		refresh(false);
+	}
+
+	@Override
+	public void onActivate()
+	{
+		refresh(true);
+	}
+
+	private void refresh(boolean force)
+	{
+		if (!force && !isShowing())
 		{
-			opened += o;
+			return;
 		}
+		int page = tabs.getSelected();
+		if (page == 0)
+		{
+			if (pilotStale)
+			{
+				pilotStale = false;
+				rebuildPilot();
+			}
+			return;
+		}
+		View.Record r = view.record;
 		String common = view.state + "|" + view.level + "|" + view.goal + "|" + r.totalRuns + "|" + r.runs.size() + "|" + r.sceptres
 			+ "|" + r.paceSamples;
-		String odds = common + "|" + opened + "|" + view.now / 86_400_000L;
-		if (!odds.equals(oddsShown))
+		if (page == 1)
 		{
-			oddsShown = odds;
-			rebuildOdds();
+			long opened = 0;
+			for (long o : r.opened)
+			{
+				opened += o;
+			}
+			String odds = common + "|" + opened + "|" + view.now / 86_400_000L;
+			if (!odds.equals(oddsShown))
+			{
+				oddsShown = odds;
+				rebuildOdds();
+			}
+			return;
 		}
 		StringBuilder goals = new StringBuilder();
 		for (NavigatorGoals.Need n : view.goals)
 		{
 			goals.append(n.getGoal()).append(n.getLevel()).append(',');
 		}
-		String runsKey = common + "|" + view.xp + "|" + view.targetLevel + "|" + r.recentRate + "|" + view.now / 60_000L + "|" + goals;
+		// The pyramid lights the room of the run in hand.
+		int room = view.inRun() ? view.plan.current().getRoom().getNumber() : 0;
+		String runsKey = common + "|" + view.xp + "|" + view.targetLevel + "|" + r.recentRate + "|" + view.now / 60_000L + "|" + goals + "|" + room;
 		if (!runsKey.equals(runsShown))
 		{
 			runsShown = runsKey;
@@ -301,7 +337,7 @@ public class PilotPanel extends PluginPanel
 		JPanel tiles = new JPanel(new GridLayout(1, 2, 6, 0));
 		tiles.setOpaque(false);
 		tiles.add(new StatTile(String.format(Locale.ENGLISH, "%,d", opened), "Opened", "chests & sarcs", Theme.GOLD));
-		tiles.add(new StatTile(String.format(Locale.ENGLISH, "%.2f", expected), "Expected", r.sceptres + (r.sceptres == 1 ? " sceptre found" : " sceptres found"),
+		tiles.add(new StatTile(String.format(Locale.ENGLISH, "%.2f", expected), "Expected", r.sceptres + " found so far",
 			r.sceptres > 0 ? Theme.TEAL : Theme.TEXT_MUTED));
 		stack.add(tiles);
 
@@ -405,6 +441,8 @@ public class PilotPanel extends PluginPanel
 		tiles.add(new StatTile(Format.amount(rate), "Xp an hour", r.recentRate > 0 ? "your last runs" : "forecast", Theme.GOLD));
 		tiles.add(new StatTile(Format.amount(r.totalRuns), "Runs", Format.coins(r.totalArtefacts) + " gp loot", Theme.TEAL));
 		stack.add(tiles);
+		// The ladder, drawn as the pyramid it climbs, with the player's level and their goals up its side.
+		stack.add(new PyramidCard(view.ladder, view.level, view.inRun() ? view.plan.current().getRoom() : null, r.sceptres, view.goals));
 
 		addSession(stack, r.session);
 		addHistory(stack, r.history);
@@ -422,7 +460,8 @@ public class PilotPanel extends PluginPanel
 			goalCard.accent(Theme.GOLD);
 			goalCard.add(Ui.label("Thieving " + target, Theme.body(), Theme.GOLD), BorderLayout.NORTH);
 			String hours = Format.duration(Math.round(left * 3_600_000.0 / Math.max(1, rate)));
-			goalCard.add(new Meter(Format.amount(left) + " xp, about " + Format.amount(runsLeft) + " runs", hours, share, Theme.GOLD, -1), BorderLayout.CENTER);
+			goalCard.add(new Meter(Format.amount(left) + " xp, " + Format.amount(runsLeft) + (runsLeft == 1 ? " run" : " runs"), hours, share, Theme.GOLD, -1),
+				BorderLayout.CENTER);
 			Outlook outlook = Outlook.of(r.history, view.now);
 			StackPanel south = new StackPanel(4, 0);
 			long by = outlook.afterHours(left / (double) Math.max(1, rate), view.now);
@@ -447,19 +486,6 @@ public class PilotPanel extends PluginPanel
 
 		addStash(stack, view.stash);
 
-		stack.add(new SectionHeader("The ladder", "xp an hour"));
-		Card ladder = new Card(new BorderLayout());
-		StackPanel rows = new StackPanel(3, 0);
-		Room mine = Room.highest(view.level);
-		for (Plan p : view.ladder)
-		{
-			Room top = p.getTop();
-			boolean yours = top == mine;
-			rows.add(line((yours ? "You  -  " : "") + "Level " + top.getLevel() + ", room " + top.getNumber(),
-				Format.amount(p.xpPerHour(Planner.RESTART_TICKS)), yours ? Theme.GOLD_BRIGHT : view.level >= top.getLevel() ? Theme.GOLD : Theme.TEXT_FAINT));
-		}
-		ladder.add(rows, BorderLayout.CENTER);
-		stack.add(ladder);
 
 		addSplits(stack, r);
 

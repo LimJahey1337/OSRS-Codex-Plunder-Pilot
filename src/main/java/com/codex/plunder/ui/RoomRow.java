@@ -125,13 +125,22 @@ class RoomRow extends JComponent
 		g.setFont(Theme.body());
 		String name = (locked > 0 ? "Room " + room.getNumber() : stop == null ? "" : work(stop));
 		Color nameColor = locked > 0 ? Theme.TEXT_FAINT : pass ? Theme.TEXT_MUTED : Theme.TEXT;
-		Ui.shadowed(g, Ui.clip(name, body, w - tx - rw - 12), tx, top, nameColor);
+		if (body.stringWidth(name) > w - tx - rw - 12)
+		{
+			// "13 urns + chest + sarc" beside its experience steps down a size before it is cut.
+			g.setFont(Theme.small());
+			Ui.shadowed(g, Ui.clip(name, small, w - tx - rw - 12), tx, top, nameColor);
+		}
+		else
+		{
+			Ui.shadowed(g, name, tx, top, nameColor);
+		}
 		g.setFont(Theme.small());
 		boolean opening = stop != null && (stop.isSarcophagus() || stop.isChest());
 		String odds = opening ? "1/" + room.getSceptreOneIn() : "";
 		int oddsW = opening ? small.stringWidth(odds) + 8 : 0;
 		String sub = locked > 0 ? room.getUrnXp() + " xp an urn" : here
-			? "You are here" + (stop.getUrnsLeft() < room.getUrns() ? "  -  " + (room.getUrns() - stop.getUrnsLeft()) + " searched" : "")
+			? (stop.getUrnsLeft() < room.getUrns() ? "Here, " + (room.getUrns() - stop.getUrnsLeft()) + " searched" : "You are here")
 			: "Level " + room.getLevel();
 		g.setColor(here ? Theme.TEAL : Theme.TEXT_FAINT);
 		g.drawString(Ui.clip(sub, small, w - tx - oddsW - 6), tx, bottom);

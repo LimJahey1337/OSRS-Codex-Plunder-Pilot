@@ -9,6 +9,7 @@ import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
@@ -31,6 +32,17 @@ public class PilotPlaque extends Overlay
 		final double progress;
 		final String split;
 		final Color splitColor;
+		/** The layout, worked out on the first frame this is shown and kept for the rest. */
+		String[] lines;
+		String stepShown;
+		int width;
+		int height;
+		int chip;
+		RoundRectangle2D shape;
+		GradientPaint fill;
+		Color rim;
+		Color chipFill;
+		Color chipRim;
 
 		Shown(String figure, String step, String detail, Color color, double progress, String split, Color splitColor)
 		{
@@ -93,6 +105,40 @@ public class PilotPlaque extends Overlay
 		return new String[]{text.substring(0, cut), text.substring(cut + 1)};
 	}
 
+	/** The widest the step runs: a long one is cut short rather than stretch the plaque across the game. */
+	private static final int STEP_WIDTH = 300;
+	private static final Color TRACK = Theme.alpha(Theme.INK_DEEP, 220);
+	/** The mark, drawn once. */
+	private BufferedImage mark;
+
+	/** Works out what is shown once, so a frame draws without measuring or allocating. */
+	private static void layout(Shown s, FontMetrics bold, FontMetrics small, int textX)
+	{
+		// A split sits after the figure as a small framed chip, the way a speedrun timer flashes one.
+		s.chip = s.split == null ? 0 : small.stringWidth(s.split) + 8;
+		s.stepShown = Ui.clip(s.step == null ? "" : s.step, bold, STEP_WIDTH);
+		int line1 = bold.stringWidth(s.figure) + 10 + (s.chip > 0 ? s.chip + 8 : 0) + bold.stringWidth(s.stepShown);
+		// A long detail takes a second line rather than being cut off mid-word.
+		String[] lines = s.detail == null ? new String[0] : lines(s.detail, small, DETAIL_WIDTH);
+		int line2 = 0;
+		for (int i = 0; i < lines.length; i++)
+		{
+			lines[i] = Ui.clip(lines[i], small, Math.max(DETAIL_WIDTH, line1));
+			line2 = Math.max(line2, small.stringWidth(lines[i]));
+		}
+		s.width = textX + Math.max(line1, line2) + PAD;
+		s.height = PAD + bold.getHeight() + lines.length * (small.getHeight() + 1) + PAD;
+		s.shape = new RoundRectangle2D.Float(0.5f, 0.5f, s.width - 1, s.height - 1, 10, 10);
+		s.fill = new GradientPaint(0, 0, Theme.alpha(Theme.CARD_TOP, 232), 0, s.height, Theme.alpha(Theme.INK_DEEP, 232));
+		s.rim = Theme.alpha(s.color, 170);
+		if (s.splitColor != null)
+		{
+			s.chipFill = Theme.alpha(s.splitColor, 46);
+			s.chipRim = Theme.alpha(s.splitColor, 150);
+		}
+		s.lines = lines;
+	}
+
 	@Override
 	public Dimension render(Graphics2D g)
 	{
@@ -108,26 +154,24 @@ public class PilotPlaque extends Overlay
 		FontMetrics small = g.getFontMetrics();
 		int icon = 16;
 		int textX = PAD + icon + 6;
-		// A split sits after the figure as a small framed chip, the way a speedrun timer flashes one.
-		int chip = s.split == null ? 0 : small.stringWidth(s.split) + 8;
-		int line1 = bold.stringWidth(s.figure) + 10 + (chip > 0 ? chip + 8 : 0) + bold.stringWidth(s.step);
-		// A long detail takes a second line rather than being cut off mid-word.
-		String[] lines = s.detail == null ? new String[0] : lines(s.detail, small, DETAIL_WIDTH);
-		int line2 = 0;
-		for (String l : lines)
+		if (s.lines == null)
 		{
-			line2 = Math.max(line2, small.stringWidth(l));
+			layout(s, bold, small, textX);
 		}
-		int width = textX + Math.max(line1, line2) + PAD;
-		int height = PAD + bold.getHeight() + lines.length * (small.getHeight() + 1) + PAD;
+		String[] lines = s.lines;
+		int width = s.width;
+		int height = s.height;
+		int chip = s.chip;
+		g.setPaint(s.fill);
+		g.fill(s.shape);
+		g.setColor(s.rim);
+		g.draw(s.shape);
 
-		RoundRectangle2D shape = new RoundRectangle2D.Float(0.5f, 0.5f, width - 1, height - 1, 10, 10);
-		g.setPaint(new GradientPaint(0, 0, Theme.alpha(Theme.CARD_TOP, 232), 0, height, Theme.alpha(Theme.INK_DEEP, 232)));
-		g.fill(shape);
-		g.setColor(Theme.alpha(s.color, 170));
-		g.draw(shape);
-
-		Sigil.paint(g, PAD, (height - icon) / 2f - 1, icon);
+		if (mark == null)
+		{
+			mark = Sigil.icon(icon);
+		}
+		g.drawImage(mark, PAD, (height - icon) / 2 - 1, null);
 		int base = PAD + bold.getAscent();
 		g.setFont(Theme.title());
 		Ui.shadowed(g, s.figure, textX, base, s.color);
@@ -136,24 +180,23 @@ public class PilotPlaque extends Overlay
 		{
 			int ch = small.getHeight() + 1;
 			int cy = base - bold.getAscent() / 2 - ch / 2 - 1;
-			RoundRectangle2D box = new RoundRectangle2D.Float(stepX, cy, chip, ch, 6, 6);
-			g.setColor(Theme.alpha(s.splitColor, 46));
-			g.fill(box);
-			g.setColor(Theme.alpha(s.splitColor, 150));
-			g.draw(box);
+			g.setColor(s.chipFill);
+			g.fillRoundRect(stepX, cy, chip, ch, 6, 6);
+			g.setColor(s.chipRim);
+			g.drawRoundRect(stepX, cy, chip, ch, 6, 6);
 			g.setFont(Theme.small());
 			Ui.shadowed(g, s.split, stepX + 4, cy + (ch + small.getAscent()) / 2 - 1, s.splitColor);
 			g.setFont(Theme.title());
 			stepX += chip + 8;
 		}
-		Ui.shadowed(g, s.step, stepX, base, Theme.TEXT);
+		Ui.shadowed(g, s.stepShown, stepX, base, Theme.TEXT);
 		g.setFont(Theme.small());
 		for (int i = 0; i < lines.length; i++)
 		{
-			Ui.shadowed(g, Ui.clip(lines[i], small, width - textX - PAD), textX, base + (i + 1) * (small.getHeight() + 1) + 1, Theme.TEXT_MUTED);
+			Ui.shadowed(g, lines[i], textX, base + (i + 1) * (small.getHeight() + 1) + 1, Theme.TEXT_MUTED);
 		}
 		int bar = (int) Math.round((width - 20) * Math.max(0, Math.min(1, s.progress)));
-		g.setColor(Theme.alpha(Theme.INK_DEEP, 220));
+		g.setColor(TRACK);
 		g.fillRect(10, height - 3, width - 20, 2);
 		g.setColor(s.color);
 		g.fillRect(10, height - 3, bar, 2);

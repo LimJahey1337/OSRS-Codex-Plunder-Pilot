@@ -26,7 +26,7 @@ public class Crest extends JComponent
 
 	private final Animator bar = new Animator(this);
 	private String heading = "PYRAMID PLUNDER";
-	private String figure = "-";
+	private String figure;
 	private String unit;
 	private String status = "Log in to plan your runs";
 	private Color statusColor = Theme.TEXT_MUTED;
@@ -124,16 +124,29 @@ public class Crest extends JComponent
 		g.drawString(Ui.clip(heading, small, room), tx, 22);
 
 		int top = 27;
-		int figureW = paintLarge(g, figure, tx, top, figureTint);
-		if (unit != null)
-		{
-			g.setFont(Theme.small());
-			g.setColor(Theme.GOLD_DIM);
-			g.drawString(unit, tx + figureW + 3, top + 18);
-		}
 		int cy = top + 50;
+		if (figure == null)
+		{
+			// Nothing to count yet: the status takes the figure's place rather than a lone dash.
+			g.setFont(Theme.body());
+			FontMetrics body = g.getFontMetrics();
+			Ui.shadowed(g, Ui.clip(status == null ? "" : status, body, room), tx, top + 18, statusColor);
+			g.setFont(Theme.small());
+			g.setColor(Theme.TEXT_FAINT);
+			g.drawString(Ui.clip(unit == null ? "" : unit, small, room), tx, top + 34);
+		}
+		else
+		{
+			int figureW = paintLarge(g, figure, tx, top, figureTint);
+			if (unit != null)
+			{
+				g.setFont(Theme.small());
+				g.setColor(Theme.GOLD_DIM);
+				g.drawString(unit, tx + figureW + 3, top + 18);
+			}
+		}
 		g.setFont(Theme.small());
-		if (status != null)
+		if (status != null && figure != null)
 		{
 			Ui.shadowed(g, Ui.clip(status, small, room), tx, cy, statusColor);
 		}

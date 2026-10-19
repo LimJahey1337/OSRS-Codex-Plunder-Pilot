@@ -97,6 +97,16 @@ public final class Format
 		return "1 in " + String.format(Locale.ENGLISH, "%,d", Math.round(1 / chance));
 	}
 
+	/** The same odds in the short form the crest has room for: "1/305". */
+	public static String oneInShort(double chance)
+	{
+		if (chance <= 0)
+		{
+			return "none";
+		}
+		return "1/" + String.format(Locale.ENGLISH, "%,d", Math.round(1 / chance));
+	}
+
 	/** A share as a whole percent, or "<1%". */
 	public static String percent(double share)
 	{
