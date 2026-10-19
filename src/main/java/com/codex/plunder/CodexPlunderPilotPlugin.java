@@ -14,6 +14,7 @@ import com.codex.plunder.core.Route;
 import com.codex.plunder.core.Run;
 import com.codex.plunder.core.RunTracker;
 import com.codex.plunder.core.Sceptre;
+import com.codex.plunder.core.SceptreWatch;
 import com.codex.plunder.core.Session;
 import com.codex.plunder.core.SharedBank;
 import com.codex.plunder.core.Splits;
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.ChatMessageType;
@@ -79,6 +81,7 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ClientShutdown;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.game.ItemManager;
@@ -102,8 +105,6 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private static final int PYRAMID_REGION = 7749;
 	/** About eighteen tiles: the room the player is in, not the ones beside it. */
 	private static final int NEAR = 2350;
-	/** Finding the sceptre throws the player out; it can land in the pack a moment after the run ends. */
-	private static final int SCEPTRE_GRACE_TICKS = 10;
 
 	private static final Set<Integer> URNS = ImmutableSet.of(ObjectID.NTK_URN_TYPE1_MULTI_1, ObjectID.NTK_URN_TYPE1_MULTI_2,
 		ObjectID.NTK_URN_TYPE1_MULTI_3, ObjectID.NTK_URN_TYPE1_MULTI_4, ObjectID.NTK_URN_TYPE1_MULTI_5, ObjectID.NTK_URN_TYPE2_MULTI_6,
@@ -175,16 +176,11 @@ public class CodexPlunderPilotPlugin extends Plugin
 	private boolean lastSarcophagusOpen;
 
 	private Map<Integer, Integer> lastPack;
-	/**
-	 * Sceptres carried and worn together at the last tick, or -1 before the first look. A sceptre
-	 * found is one more of them; a sceptre moved between hand and pack, or emptied by its last
-	 * teleport, is the same one under another id and must not count.
-	 */
-	private int lastSceptres = -1;
+	/** Tells a sceptre found from one moved, emptied or only just sent with the pack. */
+	private final SceptreWatch sceptreWatch = new SceptreWatch();
 	private java.util.Set<GameObject> routeOf = java.util.Collections.emptySet();
 	private int routeCount = -1;
 	private List<GameObject> routeOrder = java.util.Collections.emptyList();
-	private int finishedTick = -1000;
 	/** A message named the sceptre's charges; next tick it is held up against the player variable. */
 	private boolean compareSceptre;
 	/** The sceptre in the bank Codex Bank Steward or Gear Roadmap saved, read per profile and when they save; null when none is saved. */
@@ -223,7 +219,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			lastXp.clear();
 			seenLevel = -1;
 			lastPack = null;
-			lastSceptres = -1;
+			sceptreWatch.reset();
 			publish(null);
 		});
 	}
@@ -245,13 +241,37 @@ public class CodexPlunderPilotPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onClientShutdown(ClientShutdown event)
+	{
+		// ConfigManager writes its changes to disk in this same event, before a save queued on the
+		// client thread runs, so a save made here has to be sent on by hand or it is never written.
+		CompletableFuture<Void> done = new CompletableFuture<>();
+		clientThread.invokeLater(() ->
+		{
+			try
+			{
+				if (unsaved && profile != null && logbook != null)
+				{
+					save();
+					configManager.sendConfig();
+				}
+			}
+			finally
+			{
+				done.complete(null);
+			}
+		});
+		event.waitFor(done);
+	}
+
+	@Subscribe
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		switch (event.getGameState())
 		{
 			case HOPPING:
 				// The pack and worn items are sent again on the new world; look afresh rather than count them as found.
-				lastSceptres = -1;
+				sceptreWatch.reset();
 				break;
 			case LOADING:
 				forgetScene();
@@ -262,7 +282,9 @@ public class CodexPlunderPilotPlugin extends Plugin
 				lastXp.clear();
 				seenLevel = -1;
 				lastPack = null;
-			lastSceptres = -1;
+				// A run ended by logging out is not one the sceptre threw you out of: the pack read
+				// on the next login must not be taken for a sceptre found as the run ended.
+				sceptreWatch.reset();
 				publish(null);
 				break;
 			default:
@@ -274,6 +296,12 @@ public class CodexPlunderPilotPlugin extends Plugin
 	public void onRuneScapeProfileChanged(RuneScapeProfileChanged event)
 	{
 		save();
+		if (configManager.getRSProfileKey() == null)
+		{
+			// Logging out can leave no profile until the next login. The account's logbook stays in
+			// hand, saved, so the panel still shows it and the logout still records the run under way.
+			return;
+		}
 		loadProfile();
 		lastXp.clear();
 		seenLevel = -1;
@@ -705,26 +733,25 @@ public class CodexPlunderPilotPlugin extends Plugin
 			compareSceptre = false;
 			logbook.getSceptre().compare(client.getVarpValue(SCEPTRE_CHARGES_VARP));
 		}
-		// Counted once a tick, when the pack and the worn items have both caught up.
-		int sceptres = sceptreCount();
-		if (lastSceptres >= 0 && sceptres > lastSceptres)
+		// Counted once a tick, when the pack and the worn items have both caught up. Until the pack
+		// has arrived after a login or hop there is nothing to count against.
+		int sceptres = client.getItemContainer(InventoryID.INV) == null ? -1 : sceptreCount();
+		SceptreWatch.Seen seen = sceptreWatch.tick(sceptres, tracker.isActive(), client.getTickCount());
+		if (seen == SceptreWatch.Seen.FOUND)
 		{
-			if (tracker.isActive())
-			{
-				tracker.sceptre();
-			}
-			else if (client.getTickCount() - finishedTick <= SCEPTRE_GRACE_TICKS)
-			{
-				logbook.sceptreAfter();
-				unsaved = true;
-				save();
-			}
-			dirty = true;
+			tracker.sceptre();
 		}
-		lastSceptres = sceptres;
-		lastXp.putIfAbsent(Skill.THIEVING, client.getSkillExperience(Skill.THIEVING));
-		lastXp.putIfAbsent(Skill.STRENGTH, client.getSkillExperience(Skill.STRENGTH));
-		if (lastPack == null)
+		else if (seen == SceptreWatch.Seen.FOUND_AFTER)
+		{
+			logbook.sceptreAfter();
+			unsaved = true;
+			save();
+		}
+		dirty |= seen != SceptreWatch.Seen.NOTHING;
+		// Experience not sent yet reads 0; taken as the start, the real total would count as one gain.
+		baseline(Skill.THIEVING);
+		baseline(Skill.STRENGTH);
+		if (lastPack == null && client.getItemContainer(InventoryID.INV) != null)
 		{
 			lastPack = pack(client.getItemContainer(InventoryID.INV));
 		}
@@ -739,6 +766,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			{
 				endRun();
 			}
+			lobbyPlaque(player.getWorldLocation().getRegionID() == PYRAMID_REGION && timer == 0, level);
 			if (dirty)
 			{
 				publish(null);
@@ -893,6 +921,53 @@ public class CodexPlunderPilotPlugin extends Plugin
 		publish(new Live(plan, step, ticksLeft));
 	}
 
+	/** Notes the experience a skill starts from, once it has been sent. */
+	private void baseline(Skill skill)
+	{
+		int xp = client.getSkillExperience(skill);
+		if (xp > 0)
+		{
+			lastXp.putIfAbsent(skill, xp);
+		}
+	}
+
+	/**
+	 * In the pyramid before a run, the ready check's most urgent point on the plaque, so a full
+	 * pack or low hitpoints is seen without the panel open. Hidden anywhere else, or when all is well.
+	 */
+	private void lobbyPlaque(boolean inLobby, int level)
+	{
+		Check urgent = null;
+		if (inLobby && config.readyPlaque())
+		{
+			List<Check> checks = readyChecks(level);
+			urgent = checks == null ? null : Check.mostUrgent(checks);
+		}
+		if (urgent == null)
+		{
+			plaque.show(null, null, null, null, 0);
+			return;
+		}
+		boolean warn = urgent.getState() == Check.State.WARN;
+		plaque.show(warn ? "Before you go" : "Tip", urgent.getTitle(), urgent.getDetail(), warn ? Theme.EMBER : Theme.GOLD, 1);
+	}
+
+	/** The ready check for a fresh run at this level, or null below the first room. Client thread only. */
+	private List<Check> readyChecks(int level)
+	{
+		Plan fresh = Planner.fresh(level, logbook.getGoal(), logbook.getPace());
+		if (fresh == null)
+		{
+			return null;
+		}
+		Carried pack = carried();
+		Check.SceptreKit sceptre = carriedSceptre();
+		int charges = sceptre == Check.SceptreKit.CHARGED ? logbook.getSceptre().charges(client.getVarpValue(SCEPTRE_CHARGES_VARP)) : 0;
+		Check.Kit kit = new Check.Kit(level, client.getRealSkillLevel(Skill.PRAYER), client.getBoostedSkillLevel(Skill.HITPOINTS),
+			pack.free, pack.charm, pack.lockpick).sceptre(sceptre, charges, logbook.getSceptre().isLive(), sceptreBanked());
+		return Check.ready(kit, fresh, logbook.slotsNeeded(fresh, 10));
+	}
+
 	/**
 	 * The urns worth searching in walking order. The walk is worked out again only when an urn
 	 * is searched, so the numbers hold still while the player crosses the room.
@@ -953,7 +1028,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		}
 		long[] opened = tracker.getOpened();
 		Run run = tracker.finish(client.getTickCount());
-		finishedTick = client.getTickCount();
+		sceptreWatch.runEnded(client.getTickCount());
 		if (run == null || logbook == null)
 		{
 			return;
@@ -1243,11 +1318,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			if (loggedIn)
 			{
 				Carried pack = carried();
-				Check.SceptreKit sceptre = carriedSceptre();
-				int charges = sceptre == Check.SceptreKit.CHARGED ? logbook.getSceptre().charges(client.getVarpValue(SCEPTRE_CHARGES_VARP)) : 0;
-				Check.Kit kit = new Check.Kit(level, client.getRealSkillLevel(Skill.PRAYER), client.getBoostedSkillLevel(Skill.HITPOINTS),
-					pack.free, pack.charm, pack.lockpick).sceptre(sceptre, charges, logbook.getSceptre().isLive(), sceptreBanked());
-				view.ready(new View.Ready(Check.ready(kit, fresh, logbook.slotsNeeded(fresh, 10)), pack.artefacts, pack.artefactValue));
+				view.ready(new View.Ready(readyChecks(level), pack.artefacts, pack.artefactValue));
 			}
 		}
 		view.stash(stash()).goals(navigatorNeeds(level));

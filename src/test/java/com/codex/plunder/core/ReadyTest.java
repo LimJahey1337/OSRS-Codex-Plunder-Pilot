@@ -1,6 +1,7 @@
 package com.codex.plunder.core;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import java.util.Arrays;
 import java.util.List;
@@ -46,6 +47,22 @@ public class ReadyTest
 		assertTrue(late.stream().anyMatch(c -> c.getTitle().equals("Leave the snake charm")));
 		assertTrue(late.stream().anyMatch(c -> c.getTitle().equals("Leave the lockpick")));
 		assertTrue(late.stream().anyMatch(c -> c.getTitle().equals("Protect from Melee")));
+	}
+
+	@Test
+	public void thePlaqueRaisesAWarningBeforeATipAndNothingWhenAllIsWell()
+	{
+		Plan plan = Planner.fresh(40, Goal.EXPERIENCE, new Pace());
+		// Full pack, low hitpoints and no snake charm: the pack leads, a warning before any tip.
+		Check urgent = Check.mostUrgent(Check.ready(new Check.Kit(40, 10, 8, 2, false, false), plan, 6));
+		assertEquals(Check.State.WARN, urgent.getState());
+		assertEquals("2 free slots", urgent.getTitle());
+		// Room to spare and healthy, but no charm: the tip is raised.
+		Check tip = Check.mostUrgent(Check.ready(new Check.Kit(40, 10, 40, 20, false, true), plan, 6));
+		assertEquals("Bring a snake charm", tip.getTitle());
+		// At 91 with the pack empty, no charm or lockpick and the Prayer for it, nothing is worth a plaque.
+		Plan high = Planner.fresh(91, Goal.EXPERIENCE, new Pace());
+		assertNull(Check.mostUrgent(Check.ready(new Check.Kit(91, 70, 99, 20, false, false), high, 8)));
 	}
 
 	@Test

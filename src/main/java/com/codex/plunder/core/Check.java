@@ -160,6 +160,27 @@ public final class Check
 		return checks;
 	}
 
+	/**
+	 * The one point of a ready check worth raising in the game view before a run: the first
+	 * warning, else the first tip, else null when everything is in order.
+	 */
+	public static Check mostUrgent(List<Check> checks)
+	{
+		Check tip = null;
+		for (Check c : checks)
+		{
+			if (c.state == State.WARN)
+			{
+				return c;
+			}
+			if (c.state == State.TIP && tip == null)
+			{
+				tip = c;
+			}
+		}
+		return tip;
+	}
+
 	/** Below this many charges the sceptre is worth topping up before it strands you. */
 	static final int LOW_CHARGES = 3;
 

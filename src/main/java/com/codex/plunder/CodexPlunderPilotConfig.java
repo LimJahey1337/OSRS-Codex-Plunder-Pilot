@@ -45,10 +45,21 @@ public interface CodexPlunderPilotConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "readyPlaque",
+		name = "Ready plaque",
+		description = "In the pyramid before a run, show the ready check's most urgent point on a plaque in the game view, such as a pack too full for the artefacts",
+		position = 3
+	)
+	default boolean readyPlaque()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "summary",
 		name = "Run summary in chat",
 		description = "When a run ends, write what it earned and the sceptre odds it carried in the chat box",
-		position = 3
+		position = 4
 	)
 	default boolean summary()
 	{
@@ -59,7 +70,7 @@ public interface CodexPlunderPilotConfig extends Config
 		keyName = "roomOpens",
 		name = "Room openings in chat",
 		description = "When a Thieving level opens a deeper room, say so in the chat box with what a run pays there",
-		position = 4
+		position = 5
 	)
 	default boolean roomOpens()
 	{
