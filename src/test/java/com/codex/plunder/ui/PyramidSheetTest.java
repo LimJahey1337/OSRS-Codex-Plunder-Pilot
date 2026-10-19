@@ -55,4 +55,15 @@ public class PyramidSheetTest
 		assertEquals(PyramidSheet.WIDTH, card.getWidth());
 		assertTrue(card.getHeight() > 200);
 	}
+
+	@Test
+	public void oneSceptreIsCountedInTheSingular()
+	{
+		View.Record one = new View.Record(Collections.emptyList(), new long[8], 1, 12, 40_000, 90, 0, 0);
+		PyramidSheet.Fact f = PyramidSheet.facts(view(91, one)).get(2);
+		assertEquals("Sceptre", f.label);
+		assertEquals("1", f.value);
+		View.Record three = new View.Record(Collections.emptyList(), new long[8], 3, 12, 40_000, 90, 0, 0);
+		assertEquals("Sceptres", PyramidSheet.facts(view(91, three)).get(2).label);
+	}
 }

@@ -73,7 +73,7 @@ public final class PyramidSheet
 		double chance = view.fresh.getSceptreChance();
 		if (r.sceptres > 0)
 		{
-			out.add(new Fact("Sceptres", String.valueOf(r.sceptres), r.sceptres == 1 ? "found" : "found so far", Theme.TEAL));
+			out.add(new Fact(r.sceptres == 1 ? "Sceptre" : "Sceptres", String.valueOf(r.sceptres), r.sceptres == 1 ? "found" : "found so far", Theme.TEAL));
 		}
 		else
 		{
