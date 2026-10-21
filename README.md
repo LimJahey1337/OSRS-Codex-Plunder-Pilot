@@ -33,7 +33,13 @@ Part of the **Codex** suite of RuneLite plugins. They share one look: warm ink, 
   <img src="docs/screenshots/pyramid-card.png" width="330" alt="The pyramid card">
 </p>
 
-**Chat.** When a run ends, a line with the room reached, the experience, the artefacts and the sceptre odds it carried. When a new level opens a deeper room, a line says so and what a run pays there now.
+**Time lost.** Each room on the way down, timed without its searching: the trap, the walk and finding the door. Your usual time over your last 20 runs is set against your quickest, and the gap is priced in what it costs you: the experience an hour those seconds would earn searching deeper. The room that gives the most away is lit, so you know exactly where to tighten up.
+
+<p align="center">
+  <img src="docs/screenshots/time-lost.png" width="242" alt="Time lost: where your clock goes">
+</p>
+
+**Chat.** When a run ends, a line with the room reached, the experience, the artefacts and the sceptre odds it carried, and the room that ran slowest against your quickest. When a new level opens a deeper room, a line says so and what a run pays there now.
 
 ## Settings that matter
 
@@ -60,7 +66,7 @@ Getting through each room costs a fixed time. What is left of the five minutes g
 - **Experience** opens the chests from room 4 on first, then searches urns from the best-paying room down while the clock allows.
 - **Sceptre** opens every chest and the sarcophagi from room 4 on, where their odds are best, before any urn.
 
-The plan starts from typical times and learns your own from your runs. Everything is saved per account in your RuneLite profile. A save damaged on disk keeps all it can: one unreadable run or setting is lost alone. Before a damaged save, or one a newer version wrote, is first saved over, a copy of it as found is kept aside in your profile.
+The plan starts from typical times and learns your own from your runs, including how long an urn takes you in each room. A room's urns can take you longer than another's, from failed searches or a longer walk between them; once the Pilot has timed enough of them it moves searches to where they pay more per second, and says so on the Runs page. Everything is saved per account in your RuneLite profile. A save damaged on disk keeps all it can: one unreadable run or setting is lost alone. Before a damaged save, or one a newer version wrote, is first saved over, a copy of it as found is kept aside in your profile.
 
 ## Rules posture
 

@@ -18,6 +18,8 @@ public final class Run
 	private Goal goal;
 	/** Ticks from the start of the run to entering each room, by room; -1 where not seen. Older saves have none. */
 	private int[] splits;
+	/** Ticks each room took to cross without its searches: the trap, the walk and the door; -1 where not seen. Older saves have none. */
+	private int[] passes;
 
 	Run()
 	{
@@ -32,7 +34,14 @@ public final class Run
 	Run(long at, int ticks, int deepest, int thievingXp, int strengthXp, int urns, int chests, int sarcophagi,
 		long artefacts, int artefactCount, double sceptreChance, boolean sceptre, Goal goal, int[] splits)
 	{
+		this(at, ticks, deepest, thievingXp, strengthXp, urns, chests, sarcophagi, artefacts, artefactCount, sceptreChance, sceptre, goal, splits, null);
+	}
+
+	Run(long at, int ticks, int deepest, int thievingXp, int strengthXp, int urns, int chests, int sarcophagi,
+		long artefacts, int artefactCount, double sceptreChance, boolean sceptre, Goal goal, int[] splits, int[] passes)
+	{
 		this.splits = splits == null ? null : splits.clone();
+		this.passes = passes == null ? null : passes.clone();
 		this.artefactCount = artefactCount;
 		this.at = at;
 		this.ticks = ticks;
@@ -132,6 +141,15 @@ public final class Run
 		return splits == null || room == null || room.ordinal() >= splits.length ? -1 : splits[room.ordinal()];
 	}
 
+	/**
+	 * Ticks crossing the room took without its searches, or -1 when the run did not cross it,
+	 * or was saved before crossings were kept.
+	 */
+	public int passAt(Room room)
+	{
+		return passes == null || room == null || room.ordinal() >= passes.length ? -1 : passes[room.ordinal()];
+	}
+
 	/** Brings back into range what a damaged save left out of it. */
 	void repair()
 	{
@@ -150,6 +168,13 @@ public final class Run
 			for (int k = 0; k < splits.length; k++)
 			{
 				splits[k] = Math.max(-1, splits[k]);
+			}
+		}
+		if (passes != null)
+		{
+			for (int k = 0; k < passes.length; k++)
+			{
+				passes[k] = Math.max(-1, passes[k]);
 			}
 		}
 	}

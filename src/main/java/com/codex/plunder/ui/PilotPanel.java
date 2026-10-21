@@ -12,6 +12,7 @@ import com.codex.plunder.core.Planner;
 import com.codex.plunder.core.Room;
 import com.codex.plunder.core.Run;
 import com.codex.plunder.core.Session;
+import com.codex.plunder.core.Leaks;
 import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Step;
 import java.awt.BorderLayout;
@@ -491,6 +492,7 @@ public class PilotPanel extends PluginPanel
 
 
 		addSplits(stack, r);
+		addLeaks(stack, r.leaks);
 
 		if (!r.runs.isEmpty())
 		{
@@ -747,6 +749,52 @@ public class PilotPanel extends PluginPanel
 			foot = "Each bar is how long the room took; its tick is the room's quickest ever.";
 		}
 		card.add(Ui.wrapped(foot, Theme.small(), Theme.TEXT_FAINT, WIDTH - 30), BorderLayout.SOUTH);
+		stack.add(card);
+	}
+
+	/** Where the clock goes: each room's usual crossing against its quickest, priced in experience an hour. */
+	private void addLeaks(StackPanel stack, Leaks leaks)
+	{
+		if (leaks == null || leaks.getTop() == null || leaks.getTop().ordinal() == 0)
+		{
+			return;
+		}
+		boolean urns = leaks.getFasterUrnsFrom() != null;
+		if (leaks.getRooms().isEmpty() && !urns)
+		{
+			return;
+		}
+		Leaks.Leak worst = leaks.biggest();
+		int total = leaks.total();
+		stack.add(new SectionHeader("Time lost", total >= 100 ? Format.amount(total) + " xp/h" : "none"));
+		Card card = new Card(new BorderLayout(0, 6));
+		card.accent(worst != null ? Theme.EMBER : Theme.GREEN);
+		StackPanel body = new StackPanel(6, 0);
+		if (!leaks.getRooms().isEmpty())
+		{
+			body.add(new LeakTable(leaks));
+			String foot;
+			if (worst != null)
+			{
+				foot = "Room " + worst.getRoom().getNumber() + " gives the most away: its trap, walk and door usually take you " + Format.seconds(worst.getTypical())
+					+ ", " + Format.seconds(worst.getGap()) + " over your quickest. That fast every run buys searches deeper down worth about "
+					+ Format.amount(worst.getXpPerHour()) + " xp an hour.";
+			}
+			else
+			{
+				foot = "You get through every room about as fast as you ever have, so the clock is going on searches.";
+			}
+			body.add(Ui.wrapped(foot + " Searching is not counted. From your last " + leaks.getRuns() + " runs to room " + leaks.getTop().getNumber() + ".",
+				Theme.small(), Theme.TEXT_FAINT, WIDTH - 30));
+		}
+		if (urns)
+		{
+			int n = leaks.getMovedUrns();
+			body.add(Ui.wrapped("Your urns in room " + leaks.getFasterUrnsFrom().getNumber() + " take you longer than in room " + leaks.getFasterUrnsTo().getNumber()
+				+ ", so the plan now searches " + n + (n == 1 ? " more urn" : " more urns") + " in room " + leaks.getFasterUrnsTo().getNumber()
+				+ " instead: about " + Format.amount(leaks.getUrnGain()) + " xp a run more than timing every room alike.", Theme.small(), Theme.TEAL, WIDTH - 30));
+		}
+		card.add(body, BorderLayout.CENTER);
 		stack.add(card);
 	}
 

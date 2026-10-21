@@ -2,6 +2,7 @@ package com.codex.plunder.ui;
 
 import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Goal;
+import com.codex.plunder.core.Leaks;
 import com.codex.plunder.core.NavigatorGoals;
 import com.codex.plunder.core.Plan;
 import com.codex.plunder.core.Room;
@@ -39,6 +40,8 @@ public final class View
 		/** The newest run that reached the deepest room for this goal, or null. */
 		Run splitRun;
 		Session session;
+		/** Where the clock goes on the way to the deepest room, or null. */
+		Leaks leaks;
 		/** Every session in the runs kept, newest first. */
 		List<Session> history = Collections.emptyList();
 
@@ -58,6 +61,12 @@ public final class View
 		 * @param prior the splits from the runs before {@code last}
 		 * @param last the newest run that reached the deepest room, or null
 		 */
+		public Record leaks(Leaks leaks)
+		{
+			this.leaks = leaks;
+			return this;
+		}
+
 		public Record splits(Splits prior, Run last)
 		{
 			this.splits = prior;
