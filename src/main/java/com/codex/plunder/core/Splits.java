@@ -151,6 +151,42 @@ public final class Splits
 		return start + sum;
 	}
 
+	/** Ticks over its quickest crossing that a run must lose in a room before it is named: three seconds. */
+	public static final int SLOW = 5;
+
+	/**
+	 * The room this run lost most time in against its quickest crossing before it, or null when
+	 * no room ran {@link #SLOW} ticks over.
+	 */
+	public Room slowest(Run run)
+	{
+		Room worst = null;
+		int most = SLOW - 1;
+		if (run == null || top == null)
+		{
+			return null;
+		}
+		for (int i = 0; i < top.ordinal(); i++)
+		{
+			Room r = Room.values()[i];
+			int over = overrun(run, r);
+			if (over > most)
+			{
+				most = over;
+				worst = r;
+			}
+		}
+		return worst;
+	}
+
+	/** Ticks the run took in the room over its quickest crossing before it, or 0 when either is not known. */
+	public int overrun(Run run, Room room)
+	{
+		int seg = segment(run, room);
+		int quickest = bestSegment(room);
+		return seg < 0 || quickest < 0 ? 0 : Math.max(0, seg - quickest);
+	}
+
 	/** Whether this run reached the deepest room faster than every run before it. */
 	public boolean isNewBest(Run run, Goal goal)
 	{

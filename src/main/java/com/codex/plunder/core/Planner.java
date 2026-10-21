@@ -93,7 +93,7 @@ public final class Planner
 			int urns = first ? here.getUrnsLeft() : room.getUrns();
 			for (int u = 0; u < urns; u++)
 			{
-				options.add(new Option(room, Kind.URN, 1, pace.urn(), room.getUrnXp()));
+				options.add(new Option(room, Kind.URN, 1, pace.urn(room), room.getUrnXp()));
 			}
 			if (!(first && here.isChestOpen()))
 			{

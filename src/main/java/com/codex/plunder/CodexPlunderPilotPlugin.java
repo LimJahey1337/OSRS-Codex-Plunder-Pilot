@@ -4,6 +4,7 @@ import com.codex.plunder.core.Check;
 import com.codex.plunder.core.Experience;
 import com.codex.plunder.core.Goal;
 import com.codex.plunder.core.Here;
+import com.codex.plunder.core.Leaks;
 import com.codex.plunder.core.Logbook;
 import com.codex.plunder.core.NavigatorGoals;
 import com.codex.plunder.core.Odds;
@@ -1074,6 +1075,14 @@ public class CodexPlunderPilotPlugin extends Plugin
 				message.append(". New best to room " + top.getNumber() + ": " + Format.clock(run.splitAt(top)) + ", "
 					+ Format.seconds(gained) + " faster");
 			}
+			else
+			{
+				Room slow = before.slowest(run);
+				if (slow != null)
+				{
+					message.append(". Room " + slow.getNumber() + " ran " + Format.seconds(before.overrun(run, slow)) + " over your quickest");
+				}
+			}
 			Session session = Session.latest(logbook.getRuns(), System.currentTimeMillis());
 			if (session.getRuns().size() >= 2)
 			{
@@ -1345,6 +1354,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 		View.Record record = new View.Record(new ArrayList<>(logbook.getRuns()), logbook.getOpened(), logbook.getSceptres(),
 			logbook.getTotalRuns(), logbook.getTotalXp(), logbook.getTotalArtefacts(), logbook.recentRate(10), pace.getUrnSamples())
 			.splits(book.prior, book.last)
+			.leaks(level >= Room.ENTRY_LEVEL ? Leaks.of(logbook.getRuns(), goal, level, pace) : null)
 			.session(Session.latest(logbook.getRuns(), now))
 			.history(Session.history(logbook.getRuns(), now));
 		String name = loggedIn ? client.getLocalPlayer().getName() : null;

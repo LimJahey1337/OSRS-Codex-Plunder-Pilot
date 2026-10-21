@@ -14,6 +14,7 @@ public final class RunTracker
 	private int deepest;
 	private int roomTick;
 	private int lastActionTick;
+	private int firstActionTick;
 	private boolean actedHere;
 	private int lastUrnTick;
 	private int thievingXp;
@@ -26,6 +27,7 @@ public final class RunTracker
 	private boolean sceptre;
 	private final long[] opened = new long[Room.values().length];
 	private final int[] entered = new int[Room.values().length];
+	private final int[] passes = new int[Room.values().length];
 
 	public boolean isActive()
 	{
@@ -54,6 +56,7 @@ public final class RunTracker
 		sceptre = false;
 		java.util.Arrays.fill(opened, 0);
 		java.util.Arrays.fill(entered, -1);
+		java.util.Arrays.fill(passes, -1);
 	}
 
 	/** The player is in this room now. Moving one room deeper times the room just left. */
@@ -69,6 +72,11 @@ public final class RunTracker
 			// came before the searches, so it is added back from the pace when there were any.
 			int took = tick - (actedHere ? lastActionTick : roomTick);
 			pace.passTook(actedHere ? took + (int) Math.round(pace.trap()) : took);
+		}
+		if (room != null && now.ordinal() == room.ordinal() + 1)
+		{
+			// The room's crossing without its searches: up to the first search, and from the last one out.
+			passes[room.ordinal()] = actedHere ? (firstActionTick - roomTick) + (tick - lastActionTick) : tick - roomTick;
 		}
 		if (entered[now.ordinal()] < 0)
 		{
@@ -108,7 +116,7 @@ public final class RunTracker
 		urns++;
 		if (lastUrnTick >= 0 && pace != null)
 		{
-			pace.urnTook(tick - lastUrnTick);
+			pace.urnTook(room, tick - lastUrnTick);
 		}
 		lastUrnTick = tick;
 		acted(tick);
@@ -138,6 +146,10 @@ public final class RunTracker
 
 	private void acted(int tick)
 	{
+		if (!actedHere)
+		{
+			firstActionTick = tick;
+		}
 		lastActionTick = tick;
 		actedHere = true;
 	}
@@ -235,6 +247,6 @@ public final class RunTracker
 			return null;
 		}
 		return new Run(startedAt, Math.max(0, tick - startTick), deepest, thievingXp, strengthXp, urns, chests,
-			sarcophagi, artefacts, artefactCount, Odds.atLeastOne(opened), sceptre, goal, entered);
+			sarcophagi, artefacts, artefactCount, Odds.atLeastOne(opened), sceptre, goal, entered, passes);
 	}
 }

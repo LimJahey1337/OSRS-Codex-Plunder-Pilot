@@ -93,4 +93,19 @@ public class SplitsTest
 		assertFalse(Splits.comparable(old, Goal.EXPERIENCE, Room.FIVE));
 		assertEquals(0, Splits.of(Arrays.asList(old), Goal.EXPERIENCE, Room.FIVE).getCompared());
 	}
+
+	@Test
+	public void theSlowestRoomIsTheOneMostOverItsQuickest()
+	{
+		List<Run> runs = Arrays.asList(
+			run(Goal.EXPERIENCE, 0, 20, 40, 70, 100),
+			run(Goal.EXPERIENCE, 0, 18, 45, 75, 98));
+		Splits s = Splits.of(runs, Goal.EXPERIENCE, Room.FIVE);
+		// Quickest: 18, 20, 30, 23. This run: 19, 21, 42, 24.
+		Run run = run(Goal.EXPERIENCE, 0, 19, 40, 82, 106);
+		assertEquals(Room.THREE, s.slowest(run));
+		assertEquals(12, s.overrun(run, Room.THREE));
+		// Within three seconds everywhere names nothing.
+		assertNull(s.slowest(run(Goal.EXPERIENCE, 0, 19, 40, 72, 96)));
+	}
 }
