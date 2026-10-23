@@ -1,5 +1,6 @@
 package com.codex.plunder;
 
+import com.codex.plunder.core.Warning;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -79,6 +80,18 @@ public interface CodexPlunderPilotConfig extends Config
 	default boolean readyPlaque()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "chaseWarning",
+		name = "Swarm and mummy warning",
+		description = "When a scarab swarm or mummy goes for you, say so in place of the next step, on a line under it, or not at all",
+		position = 3,
+		section = inGame
+	)
+	default Warning chaseWarning()
+	{
+		return Warning.FIRST;
 	}
 
 	@ConfigItem(

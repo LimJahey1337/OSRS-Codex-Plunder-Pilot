@@ -21,35 +21,43 @@ public final class Step
 	/** What could go wrong mid-run, read each tick. */
 	public static final class Alarm
 	{
-		final boolean packFull;
 		final boolean lowHp;
 		final boolean chased;
 		final boolean canProtect;
+		final Warning chase;
 
 		/**
 		 * @param chased a scarab swarm or mummy is after the player
 		 * @param canProtect the player has the Prayer for Protect from Melee
+		 * @param chase where the warning about a swarm or mummy goes
 		 */
-		public Alarm(boolean packFull, boolean lowHp, boolean chased, boolean canProtect)
+		public Alarm(boolean lowHp, boolean chased, boolean canProtect, Warning chase)
 		{
-			this.packFull = packFull;
 			this.lowHp = lowHp;
 			this.chased = chased;
 			this.canProtect = canProtect;
+			this.chase = chase;
 		}
 
-		public static final Alarm NONE = new Alarm(false, false, false, false);
+		public static final Alarm NONE = new Alarm(false, false, false, Warning.FIRST);
 	}
 
 	private final Kind kind;
 	private final String title;
 	private final String detail;
+	private final String note;
 
 	private Step(Kind kind, String title, String detail)
+	{
+		this(kind, title, detail, null);
+	}
+
+	private Step(Kind kind, String title, String detail, String note)
 	{
 		this.kind = kind;
 		this.title = title;
 		this.detail = detail;
+		this.note = note;
 	}
 
 	public Kind getKind()
@@ -67,6 +75,12 @@ public final class Step
 		return detail;
 	}
 
+	/** A warning shown under the step without taking its place, or null. */
+	public String getNote()
+	{
+		return note;
+	}
+
 	/**
 	 * @param plan the plan for the rest of the run
 	 * @param inRun whether a run is under way; before one, the step is to go in
@@ -80,13 +94,28 @@ public final class Step
 
 	public static Step next(Plan plan, boolean inRun, boolean trapActive, int doorsTried, Alarm alarm)
 	{
+		Step step = plain(plan, inRun, trapActive, doorsTried, alarm);
+		if (step.kind != Kind.ENTER && alarm.chased && alarm.chase == Warning.UNDER)
+		{
+			return new Step(step.kind, step.title, step.detail,
+				alarm.canProtect ? "Swarm or mummy on you: Protect from Melee" : "Swarm or mummy on you: it only chases");
+		}
+		return step;
+	}
+
+	/**
+	 * The step itself. A full pack never takes its place: the wiki's advice is a pack full of food
+	 * unless the artefacts are wanted, and a sceptre found with no room waits on the ground outside.
+	 */
+	private static Step plain(Plan plan, boolean inRun, boolean trapActive, int doorsTried, Alarm alarm)
+	{
 		Plan.Stop stop = plan.current();
 		if (!inRun || stop == null)
 		{
 			return new Step(Kind.ENTER, "Enter the pyramid", enterDetail(plan));
 		}
 		Room room = stop.getRoom();
-		if (alarm.chased)
+		if (alarm.chased && alarm.chase == Warning.FIRST)
 		{
 			return new Step(Kind.DANGER, alarm.canProtect ? "Protect from Melee" : "Keep moving",
 				alarm.canProtect ? "A swarm or mummy is on you; the prayer stops all of its damage" : "It only chases you; finish the room and take the door");
@@ -94,11 +123,6 @@ public final class Step
 		if (alarm.lowHp)
 		{
 			return new Step(Kind.DANGER, "Eat first", "Under " + (Check.LOW_HP + 1) + " hitpoints a snake bite and its poison can hurt");
-		}
-		boolean looting = stop.getUrns() > 0 || stop.isChest() || stop.isSarcophagus();
-		if (alarm.packFull && looting && !trapActive)
-		{
-			return new Step(Kind.DANGER, "Your pack is full", "Drop the cheapest artefacts, the stone and pottery ones, to keep looting");
 		}
 		if (trapActive)
 		{

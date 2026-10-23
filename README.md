@@ -18,7 +18,7 @@ Part of the **Codex** suite of RuneLite plugins. They share one look: warm ink, 
 
 **Ready check.** Before you go in: enough free slots for the artefacts a run turns up, low hitpoints, whether a snake charm or lockpick helps at your level, Protect from Melee against the swarm and mummies, and your sceptre's charges.
 
-**During a run.** The crest becomes the clock. The next-step card says exactly what to do: pass the trap, search 9 urns, open the chest, find the door. The plan is redone every tick from what is left, so a slow room shortens what follows instead of costing you the deepest room's urns. In the room, the urns worth searching are outlined and numbered in the shortest walk; the chest, sarcophagus, trap and untried doors light up when each is next. When a swarm or mummy is on you, or your pack is full, the next step says what to do first.
+**During a run.** The crest becomes the clock. The next-step card says exactly what to do: pass the trap, search 9 urns, open the chest, find the door. The plan is redone every tick from what is left, so a slow room shortens what follows instead of costing you the deepest room's urns. In the room, the urns worth searching are outlined and numbered in the shortest walk; the chest, sarcophagus, trap and untried doors light up when each is next. When a swarm or mummy is on you, the next step says what to do first, or names it on a line under the step if you would rather the plan kept going. A full pack never stops the plan: a sceptre found with no room waits on the ground outside.
 
 <p align="center">
   <img src="docs/screenshots/in-run.png" width="225" alt="During a run">
@@ -45,6 +45,7 @@ Part of the **Codex** suite of RuneLite plugins. They share one look: warm ink, 
 
 - **Highlight the next step** (on): the outlines and urn numbers in the room.
 - **Run plaque** and **Ready plaque** (both on): the plaque during a run, and the ready check's most urgent point before one.
+- **Swarm and mummy warning** (In place of the step): when a swarm or mummy goes for you, say so in place of the next step, on a red line under it, or not at all.
 - **Run summary in chat** and **Room openings in chat** (both on).
 - **Goal level** (99): the Thieving level the Runs page counts toward.
 - **Name on cards** (on): turn off to share the pyramid card without your character's name.

@@ -24,6 +24,7 @@ import com.codex.plunder.core.Splits;
 import com.codex.plunder.core.Stash;
 import com.codex.plunder.core.Step;
 import com.codex.plunder.core.Unlock;
+import com.codex.plunder.core.Warning;
 import com.codex.plunder.overlay.PilotPlaque;
 import com.codex.plunder.overlay.RoomHighlights;
 import com.codex.plunder.ui.Actions;
@@ -884,9 +885,9 @@ public class CodexPlunderPilotPlugin extends Plugin
 			publish(null);
 			return;
 		}
-		Carried pack = carried();
-		Step.Alarm alarm = new Step.Alarm(pack.free == 0, client.getBoostedSkillLevel(Skill.HITPOINTS) <= Check.LOW_HP,
-			chased(player), client.getRealSkillLevel(Skill.PRAYER) >= 43);
+		Warning chase = config.chaseWarning();
+		Step.Alarm alarm = new Step.Alarm(client.getBoostedSkillLevel(Skill.HITPOINTS) <= Check.LOW_HP,
+			chase != Warning.OFF && chased(player), client.getRealSkillLevel(Skill.PRAYER) >= 43, chase);
 		Step step = Step.next(plan, true, trapActive, triedSlots.size(), alarm);
 
 		List<RoomHighlights.Mark> marks = new ArrayList<>();
@@ -926,7 +927,7 @@ public class CodexPlunderPilotPlugin extends Plugin
 			Integer split = liveSplit(room);
 			boolean flash = split != null && tracker.elapsed(now) - tracker.enteredAt(room) < SPLIT_FLASH_TICKS;
 			plaque.show("R" + room.getNumber() + "  " + Format.clock(ticksLeft), step.getTitle(), step.getDetail(), color,
-				ticksLeft / (double) Planner.RUN_TICKS, flash ? Format.split(split) : null, flash ? splitColor(split) : null);
+				ticksLeft / (double) Planner.RUN_TICKS, flash ? Format.split(split) : null, flash ? splitColor(split) : null, step.getNote());
 		}
 		else
 		{

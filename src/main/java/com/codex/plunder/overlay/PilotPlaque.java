@@ -32,9 +32,11 @@ public class PilotPlaque extends Overlay
 		final double progress;
 		final String split;
 		final Color splitColor;
+		final String note;
 		/** The layout, worked out on the first frame this is shown and kept for the rest. */
 		String[] lines;
 		String stepShown;
+		String noteShown;
 		int width;
 		int height;
 		int chip;
@@ -44,7 +46,7 @@ public class PilotPlaque extends Overlay
 		Color chipFill;
 		Color chipRim;
 
-		Shown(String figure, String step, String detail, Color color, double progress, String split, Color splitColor)
+		Shown(String figure, String step, String detail, Color color, double progress, String split, Color splitColor, String note)
 		{
 			this.split = split;
 			this.splitColor = splitColor;
@@ -53,6 +55,7 @@ public class PilotPlaque extends Overlay
 			this.detail = detail;
 			this.color = color;
 			this.progress = progress;
+			this.note = note;
 		}
 	}
 
@@ -76,7 +79,13 @@ public class PilotPlaque extends Overlay
 	 */
 	public void show(String figure, String step, String detail, Color color, double progress, String split, Color splitColor)
 	{
-		shown = figure == null ? null : new Shown(figure, step, detail, color, progress, split, splitColor);
+		show(figure, step, detail, color, progress, split, splitColor, null);
+	}
+
+	/** @param note a warning drawn in red on a line of its own under the detail, or null */
+	public void show(String figure, String step, String detail, Color color, double progress, String split, Color splitColor, String note)
+	{
+		shown = figure == null ? null : new Shown(figure, step, detail, color, progress, split, splitColor, note);
 	}
 
 	/** The widest a detail line runs before it breaks onto a second. */
@@ -126,8 +135,15 @@ public class PilotPlaque extends Overlay
 			lines[i] = Ui.clip(lines[i], small, Math.max(DETAIL_WIDTH, line1));
 			line2 = Math.max(line2, small.stringWidth(lines[i]));
 		}
+		int rows = lines.length;
+		if (s.note != null)
+		{
+			s.noteShown = Ui.clip(s.note, small, Math.max(DETAIL_WIDTH, line1));
+			line2 = Math.max(line2, small.stringWidth(s.noteShown));
+			rows++;
+		}
 		s.width = textX + Math.max(line1, line2) + PAD;
-		s.height = PAD + bold.getHeight() + lines.length * (small.getHeight() + 1) + PAD;
+		s.height = PAD + bold.getHeight() + rows * (small.getHeight() + 1) + PAD;
 		s.shape = new RoundRectangle2D.Float(0.5f, 0.5f, s.width - 1, s.height - 1, 10, 10);
 		s.fill = new GradientPaint(0, 0, Theme.alpha(Theme.CARD_TOP, 232), 0, s.height, Theme.alpha(Theme.INK_DEEP, 232));
 		s.rim = Theme.alpha(s.color, 170);
@@ -194,6 +210,10 @@ public class PilotPlaque extends Overlay
 		for (int i = 0; i < lines.length; i++)
 		{
 			Ui.shadowed(g, lines[i], textX, base + (i + 1) * (small.getHeight() + 1) + 1, Theme.TEXT_MUTED);
+		}
+		if (s.noteShown != null)
+		{
+			Ui.shadowed(g, s.noteShown, textX, base + (lines.length + 1) * (small.getHeight() + 1) + 1, Theme.BLOOD);
 		}
 		int bar = (int) Math.round((width - 20) * Math.max(0, Math.min(1, s.progress)));
 		g.setColor(TRACK);

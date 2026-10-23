@@ -70,10 +70,30 @@ public class ReadyTest
 	{
 		Plan plan = Planner.plan(91, Goal.EXPERIENCE, new Pace(), new Here(Room.EIGHT, 13, false, false, true), 300);
 		assertEquals(Step.Kind.URNS, Step.next(plan, true, false, 0).getKind());
-		Step chased = Step.next(plan, true, false, 0, new Step.Alarm(false, false, true, true));
+		Step chased = Step.next(plan, true, false, 0, new Step.Alarm(false, true, true, Warning.FIRST));
 		assertEquals("Protect from Melee", chased.getTitle());
-		assertEquals(Step.Kind.DANGER, Step.next(plan, true, false, 0, new Step.Alarm(true, false, false, false)).getKind());
-		assertEquals("Eat first", Step.next(plan, true, false, 0, new Step.Alarm(true, true, false, false)).getTitle());
+		assertEquals(Step.Kind.DANGER, chased.getKind());
+		assertEquals("Eat first", Step.next(plan, true, false, 0, new Step.Alarm(true, false, false, Warning.FIRST)).getTitle());
+	}
+
+	@Test
+	public void aSwarmOrMummyCanBeNamedUnderTheStepOrNotAtAll()
+	{
+		Plan plan = Planner.plan(91, Goal.EXPERIENCE, new Pace(), new Here(Room.EIGHT, 13, false, false, true), 300);
+		// Under the step: the plan goes on, with the warning on its own line.
+		Step under = Step.next(plan, true, false, 0, new Step.Alarm(false, true, true, Warning.UNDER));
+		assertEquals(Step.Kind.URNS, under.getKind());
+		assertEquals("Swarm or mummy on you: Protect from Melee", under.getNote());
+		// Off: the plan goes on and nothing is said.
+		Step off = Step.next(plan, true, false, 0, new Step.Alarm(false, true, true, Warning.OFF));
+		assertEquals(Step.Kind.URNS, off.getKind());
+		assertNull(off.getNote());
+		// Nothing after the player: no line under the step whatever the setting.
+		assertNull(Step.next(plan, true, false, 0, new Step.Alarm(false, false, true, Warning.UNDER)).getNote());
+		// Low hitpoints still comes first, with the swarm under it.
+		Step eat = Step.next(plan, true, false, 0, new Step.Alarm(true, true, false, Warning.UNDER));
+		assertEquals("Eat first", eat.getTitle());
+		assertEquals("Swarm or mummy on you: it only chases", eat.getNote());
 	}
 
 	@Test

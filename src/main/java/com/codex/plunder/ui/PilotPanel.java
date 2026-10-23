@@ -254,6 +254,10 @@ public class PilotPanel extends PluginPanel
 		words.setOpaque(false);
 		words.add(Ui.label(view.step.getTitle(), Theme.title(), danger ? Theme.BLOOD : Theme.GOLD_BRIGHT), BorderLayout.NORTH);
 		words.add(Ui.wrapped(view.step.getDetail(), Theme.small(), Theme.TEXT_MUTED, WIDTH - 30), BorderLayout.CENTER);
+		if (view.step.getNote() != null)
+		{
+			words.add(Ui.wrapped(view.step.getNote(), Theme.small(), Theme.BLOOD, WIDTH - 30), BorderLayout.SOUTH);
+		}
 		next.add(words, BorderLayout.CENTER);
 		stack.add(next);
 
